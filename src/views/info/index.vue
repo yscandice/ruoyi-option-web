@@ -6,145 +6,493 @@
         <h1>信息</h1>
         <p>盘前市场、公司财报与重要事件，一站整理。</p>
       </div>
-      <span class="demo-badge"><i />静态演示数据</span>
+      <div class="heading-actions">
+        <span :class="['demo-badge', { live: badge.live, failed: badge.failed }]" :title="errors[activeTab] || ''"><i />{{ badge.text }}</span>
+        <button class="date-button" type="button" :disabled="loading[activeTab]" @click="reload()"><el-icon :class="{ spinning: loading[activeTab] }"><Refresh /></el-icon><span>刷新</span></button>
+      </div>
     </section>
 
     <nav class="info-tabs" aria-label="信息栏目">
-      <button v-for="item in sections" :key="item.key" type="button" :class="['info-tab', { active: activeTab === item.key }]" @click="activeTab = item.key">
-        <el-icon><component :is="item.icon" /></el-icon><span>{{ item.label }}</span><small>{{ item.hint }}</small>
+      <button v-for="item in sections" :key="item.key" type="button" :class="['info-tab', { active: activeTab === item.key }]" @click="switchTab(item.key)">
+        <el-icon><component :is="item.icon" /></el-icon><span>{{ item.label }}<em v-if="feedStats[item.key]?.unread" class="tab-unread">{{ feedStats[item.key].unread }}</em></span><small>{{ tabHint(item) }}</small>
       </button>
     </nav>
 
-    <template v-if="activeTab === 'premarket'">
+    <!-- 无数据 / 加载失败 -->
+    <section v-if="activeTab !== 'events' && showEmpty" class="other-section panel">
+      <div class="other-head"><span class="other-icon"><el-icon><component :is="activeSection.icon" /></el-icon></span><div><div class="section-label">{{ activeSection.label }} <span>{{ activeSection.english }}</span></div><p>{{ activeSection.description }}</p></div></div>
+      <div class="other-content">
+        <div class="other-illustration"><el-icon v-if="!loading[activeTab]"><component :is="activeSection.icon" /></el-icon><el-icon v-else class="spinning"><Loading /></el-icon><span/><span/></div>
+        <strong>{{ loading[activeTab] ? '正在加载数据' : '暂无数据' }}</strong>
+        <p>{{ loading[activeTab] ? '正在从本地服务读取 OSM 同步数据…' : (errors[activeTab] || '后端尚未同步该栏目的数据。') }}</p>
+        <button v-if="!loading[activeTab]" class="connect-action" type="button" @click="connectVisible = true"><el-icon><Connection /></el-icon>连接 OSM 并同步</button>
+      </div>
+    </section>
+
+    <!-- 盘前简报 -->
+    <template v-else-if="activeTab === 'premarket'">
       <section class="brief-topline">
         <div class="brief-heading">
           <div class="brief-kicker">PRE-MARKET <span>·</span> 盘前简报</div>
-          <h2>{{ demoDate }}</h2>
+          <h2>{{ brief?.dateLabel || dayLabel(premarket?.missing) || '—' }}</h2>
           <p>开盘前的市场脉搏、重点事件与当日观察</p>
         </div>
         <div class="brief-actions">
-          <button class="date-button" type="button" @click="shiftDate(-1)"><el-icon><ArrowLeft /></el-icon><span>前一份</span></button>
-          <div class="date-current"><el-icon><Calendar /></el-icon>{{ dateLabel }}</div>
-          <button class="date-button next-button" type="button" @click="shiftDate(1)"><span>后一份</span><el-icon><ArrowRight /></el-icon></button>
+          <button class="date-button" type="button" :disabled="!olderDate" @click="openPremarket(olderDate)"><el-icon><ArrowLeft /></el-icon><span>前一份</span></button>
+          <el-dropdown trigger="click" max-height="320px" @command="openPremarket">
+            <div class="date-current clickable"><el-icon><Calendar /></el-icon>{{ currentDate === dates[0] ? `最新 · ${shortDay(currentDate)}` : shortDay(currentDate) || '选择日期' }}</div>
+            <template #dropdown><el-dropdown-menu><el-dropdown-item v-for="d in dates" :key="d" :command="d" :class="{ 'is-current': d === currentDate }">{{ dayLabel(d) }}</el-dropdown-item></el-dropdown-menu></template>
+          </el-dropdown>
+          <button class="date-button next-button" type="button" :disabled="!newerDate" @click="openPremarket(newerDate)"><span>后一份</span><el-icon><ArrowRight /></el-icon></button>
         </div>
       </section>
 
-      <section class="lead-brief">
-        <div class="lead-icon"><el-icon><ChatLineRound /></el-icon></div>
-        <div><div class="section-label">盘前摘要 <span>市场概览</span></div><p>市场风险偏好有所回落，资金在板块之间重新配置。关注利率预期、科技股表现与即将公布的公司业绩，开盘后留意波动变化。</p></div>
-        <span class="summary-mark">TODAY<br />BRIEF</span>
-      </section>
+      <section v-if="!brief" class="panel missing-panel"><el-icon><Warning /></el-icon><div><strong>{{ premarket?.missing }} 没有盘前简报</strong><p>该日期可能是非交易日或尚未发布，可从日期列表选择其他交易日。</p></div></section>
 
-      <section class="market-grid">
-        <article class="panel quote-panel">
-          <div class="panel-heading"><div><div class="section-label">盘前行情 <span>MARKET SNAPSHOT</span></div><p>主要资产与指数期货</p></div><span class="market-status"><i />盘前观察</span></div>
-          <div class="quote-grid">
-            <div v-for="item in quotes" :key="item.name" class="quote-item">
-              <span class="quote-name">{{ item.name }}</span><strong>{{ item.value }}</strong>
-              <span :class="['quote-change', item.tone]">{{ item.change }}</span>
+      <template v-else>
+        <section class="lead-brief">
+          <div class="lead-icon"><el-icon><ChatLineRound /></el-icon></div>
+          <div><div class="section-label">盘前摘要 <span>市场概览</span></div><p>{{ brief.headline }}</p></div>
+          <span class="summary-mark">TODAY<br />BRIEF</span>
+        </section>
+
+        <section class="market-grid">
+          <article class="panel quote-panel">
+            <div class="panel-heading"><div><div class="section-label">盘前行情 <span>MARKET SNAPSHOT</span></div><p>主要资产与指数期货</p></div><span class="market-status"><i />盘前观察</span></div>
+            <div class="quote-grid">
+              <div v-for="item in quotes" :key="item.name" class="quote-item">
+                <span class="quote-name">{{ item.name }}<template v-if="item.unit"> · {{ item.unit }}</template></span><strong>{{ item.value }}</strong>
+                <span :class="['quote-change', item.tone]">{{ item.change }}</span>
+              </div>
             </div>
-          </div>
-        </article>
+          </article>
 
-        <article class="panel stocks-panel">
-          <div class="panel-heading"><div><div class="section-label">盘前个股 <span>PRE-MARKET MOVERS</span></div><p>重点观察公司</p></div><el-icon class="heading-icon"><TrendCharts /></el-icon></div>
-          <div class="stock-groups">
-            <div v-for="group in stockGroups" :key="group.name" class="stock-group">
-              <div class="stock-group-name"><i :class="group.tone" />{{ group.name }}</div>
-              <div class="stock-list">
-                <div v-for="stock in group.stocks" :key="stock.symbol" class="stock-row">
-                  <strong>{{ stock.symbol }}</strong><span>{{ stock.name }}</span><b :class="stock.tone">{{ stock.change }}</b>
+          <article class="panel stocks-panel">
+            <div class="panel-heading"><div><div class="section-label">{{ brief.movers?.title || '盘前个股' }} <span>PRE-MARKET MOVERS</span></div><p>{{ brief.movers?.sub || '重点观察公司' }}</p></div><el-icon class="heading-icon"><TrendCharts /></el-icon></div>
+            <div v-if="stockGroups.length" class="stock-groups">
+              <div v-for="group in stockGroups" :key="group.name" class="stock-group">
+                <div class="stock-group-name"><i :class="group.tone" />{{ group.name }}</div>
+                <div class="stock-list">
+                  <div v-for="stock in group.stocks" :key="stock.symbol" class="stock-row">
+                    <strong>{{ stock.symbol }}</strong><span>{{ stock.name }}</span><b :class="stock.tone">{{ stock.change }}</b>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-          <div class="scale-labels"><span>跌幅较大</span><span>涨跌幅</span><span>涨幅较大</span></div>
-          <div class="scale-track"><i /></div>
-        </article>
-      </section>
-
-      <section class="analysis-grid">
-        <article class="panel rates-panel">
-          <div class="panel-heading"><div><div class="section-label">利率与宏观 <span>RATES & MACRO</span></div><p>跟踪利率预期与重要经济数据</p></div><span class="macro-tag">宏观观察</span></div>
-          <div class="macro-summary"><div class="macro-copy"><span>市场隐含概率</span><strong>利率预期变化</strong><p>关注经济数据公布后，市场对后续政策路径的定价变化。</p></div><div class="probability"><strong>—<small>%</small></strong><span>政策概率</span></div></div>
-          <div class="probability-chart" aria-label="市场隐含概率示意图"><div class="chart-grid"><i/><i/><i/><i/></div><div class="chart-line"><span/><span/><span/><span/><span/><span/><span/></div><div class="chart-axis"><span>前两周</span><span>上周</span><span>本周</span></div></div>
-          <div class="rate-outcomes"><div><span class="outcome-dot neutral"/><span>维持不变</span><strong>—</strong></div><div><span class="outcome-dot blue"/><span>小幅调整</span><strong>—</strong></div><div><span class="outcome-dot orange"/><span>较大调整</span><strong>—</strong></div></div>
-          <div class="panel-footnote"><el-icon><InfoFilled /></el-icon>此处展示利率预期与宏观事件的观察位，未连接实时数据。</div>
-        </article>
-
-        <article class="panel valuation-panel">
-          <div class="panel-heading"><div><div class="section-label">估值观察 <span>VALUATION WATCH</span></div><p>股票盈利收益率与长期利率</p></div><el-icon class="heading-icon"><DataAnalysis /></el-icon></div>
-          <div class="valuation-compare">
-            <div class="compare-metric"><span class="metric-dot blue"/><div><small>标普盈利收益率</small><strong>—<em>%</em></strong></div></div>
-            <span class="compare-vs">VS</span>
-            <div class="compare-metric"><span class="metric-dot orange"/><div><small>10 年期美债收益率</small><strong>—<em>%</em></strong></div></div>
-          </div>
-          <div class="valuation-chart"><div class="chart-ticks"><span>高</span><span>中</span><span>低</span></div><div class="valuation-bars"><i/><i/><i/><i/><i/><i/><i/><i/><i/><i/><i/><i/></div></div>
-          <div class="valuation-note"><span class="note-icon"><el-icon><Warning /></el-icon></span><p>比较股票盈利收益率与债券收益率，有助于观察两类资产的相对回报水平。</p></div>
-          <div class="earnings-strip"><span>盈利预期 <strong>—</strong></span><span>估值倍数 <strong>—</strong></span><span>利差观察 <strong>待更新</strong></span></div>
-        </article>
-      </section>
-
-      <section class="panel news-panel">
-        <div class="panel-heading"><div><div class="section-label">要闻 <span>WHAT MATTERS TODAY</span></div><p>影响市场与重点公司的信息摘要</p></div><button class="text-action" type="button">查看全部<el-icon><ArrowRight /></el-icon></button></div>
-        <div class="news-grid">
-          <article v-for="(item, index) in newsItems" :key="item.title" class="news-item">
-            <div class="news-meta"><span :class="['news-category', item.tone]">{{ item.category }}</span><span>0{{ index + 1 }}</span></div>
-            <h3>{{ item.title }}</h3><p>{{ item.description }}</p>
-            <div class="news-tickers"><span v-for="ticker in item.tickers" :key="ticker">{{ ticker }}</span></div>
+            <p v-else class="panel-empty">当日没有盘前个股数据</p>
+            <div class="scale-labels"><span>跌幅较大</span><span>涨跌幅</span><span>涨幅较大</span></div>
+            <div class="scale-track"><i :style="{ marginLeft: `${moverPos}%` }" /></div>
           </article>
+        </section>
+
+        <section class="analysis-grid">
+          <article class="panel rates-panel">
+            <div class="panel-heading"><div><div class="section-label">利率与宏观 <span>RATES & MACRO</span></div><p>{{ rateBlock?.sub || '跟踪利率预期与重要经济数据' }}</p></div><span class="macro-tag">宏观观察</span></div>
+            <template v-if="rateBlock">
+              <div class="macro-summary"><div class="macro-copy"><span>{{ rateBlock.nextLabel }}</span><strong>{{ rateBlock.title }}</strong><p>{{ rateBlock.nextNote }}</p></div><div class="probability"><strong>{{ rateBlock.nextProb ?? '—' }}<small>%</small></strong><span>市场隐含概率</span></div></div>
+              <div class="probability-chart" :aria-label="rateBlock.trendLabel">
+                <div class="chart-grid"><i/><i/><i/><i/></div>
+                <svg v-if="rateTrend.line" class="trend-svg" viewBox="0 0 100 60" preserveAspectRatio="none"><polyline :points="rateTrend.line" /></svg>
+                <div class="trend-dots"><span v-for="(dot, i) in rateTrend.dots" :key="i" :style="{ left: `${dot.x}%`, top: `${dot.y / 60 * 100}%` }" :title="`${rateBlock.trend[i].d}：${dot.v}%`" /></div>
+                <div class="chart-axis"><span v-for="label in rateAxis" :key="label">{{ label }}</span></div>
+              </div>
+              <div v-if="rateBlock.later?.items?.length" class="rate-outcomes"><div v-for="(item, i) in rateBlock.later.items.slice(0, 3)" :key="item.label"><span :class="['outcome-dot', ['neutral', 'blue', 'orange'][i]]"/><span>{{ item.label }}</span><strong>{{ item.p }}%</strong></div></div>
+              <div class="panel-footnote"><el-icon><InfoFilled /></el-icon>{{ rateBlock.later?.label ? `${rateBlock.later.label} · ` : '' }}{{ rateBlock.trendNote || rateBlock.trendLabel }}</div>
+              <p v-if="rateBlock.note" class="block-note">{{ rateBlock.note }}</p>
+            </template>
+            <p v-else class="panel-empty">当日简报没有利率预期模块</p>
+          </article>
+
+          <article class="panel valuation-panel">
+            <div class="panel-heading"><div><div class="section-label">估值观察 <span>VALUATION WATCH</span></div><p>{{ gapBlock?.sub || '股票盈利收益率与长期利率' }}</p></div><el-icon class="heading-icon"><DataAnalysis /></el-icon></div>
+            <template v-if="gapBlock || valuationBlock">
+              <div v-if="gapBlock" class="valuation-compare">
+                <div class="compare-metric"><span class="metric-dot blue"/><div><small>标普盈利收益率</small><strong>{{ gapBlock.earningsYield ?? '—' }}<em>%</em></strong></div></div>
+                <span class="compare-vs">VS</span>
+                <div class="compare-metric"><span class="metric-dot orange"/><div><small>10 年期美债收益率</small><strong>{{ gapBlock.bondYield ?? '—' }}<em>%</em></strong></div></div>
+              </div>
+              <div v-if="peBars.length" class="valuation-chart" :title="valuationBlock?.title"><div class="chart-ticks"><span>高</span><span>中</span><span>低</span></div><div class="valuation-bars"><i v-for="(h, i) in peBars" :key="i" :style="{ height: `${h}%` }"/></div></div>
+              <div class="valuation-note"><span class="note-icon"><el-icon><Warning /></el-icon></span><p>{{ gapBlock?.title || valuationBlock?.title }}{{ valuationBlock?.sub ? `；${valuationBlock.sub}` : '' }}</p></div>
+              <div v-if="gapBlock?.facts?.length" class="earnings-strip"><span v-for="fact in gapBlock.facts.slice(0, 3)" :key="fact.label">{{ fact.label }} <strong>{{ fact.value }}<small v-if="fact.sub"> {{ fact.sub }}</small></strong></span></div>
+              <p v-if="gapBlock?.note" class="block-note">{{ gapBlock.note }}</p>
+            </template>
+            <p v-else class="panel-empty">当日简报没有估值模块</p>
+          </article>
+        </section>
+
+        <section v-for="block in otherBlocks" :key="block.type" class="panel block-panel">
+          <div class="panel-heading"><div><div class="section-label">{{ block.title }}</div><p>{{ block.sub }}</p></div></div>
+          <div v-if="block.facts?.length" class="earnings-strip"><span v-for="fact in block.facts" :key="fact.label">{{ fact.label }} <strong>{{ fact.value }}</strong></span></div>
+          <p v-if="block.note" class="block-note">{{ block.note }}</p>
+        </section>
+
+        <section class="panel news-panel">
+          <div class="panel-heading"><div><div class="section-label">要闻 <span>WHAT MATTERS TODAY</span></div><p>影响市场与重点公司的信息摘要</p></div><span class="news-count">{{ news.length }} 条</span></div>
+          <div class="news-grid">
+            <article v-for="(item, index) in news" :key="item.title" class="news-item">
+              <div class="news-meta"><span :class="['news-category', item.tone]">{{ item.category }}</span><span>{{ String(index + 1).padStart(2, '0') }}</span></div>
+              <h3>{{ item.title }}</h3><p>{{ item.description }}</p>
+              <div v-if="item.tickers.length" class="news-tickers"><span v-for="ticker in item.tickers" :key="ticker">{{ ticker }}</span></div>
+            </article>
+          </div>
+        </section>
+      </template>
+
+      <p class="disclaimer"><el-icon><InfoFilled /></el-icon>数据来自 OSM 盘前简报，由后端定时同步；仅供参考，不构成投资建议。交易决策请结合可靠数据与自身风险承受能力。</p>
+    </template>
+
+    <!-- 财报解读 -->
+    <template v-else-if="activeTab === 'earnings'">
+      <section class="brief-topline">
+        <div class="brief-heading">
+          <div class="brief-kicker">EARNINGS <span>·</span> 财报解读</div>
+          <h2>{{ piece ? `${piece.company} ${piece.ticker}` : earnings?.missing || '—' }}</h2>
+          <p v-if="piece">{{ piece.period }}{{ piece.periodNote ? `（${piece.periodNote}）` : '' }} · {{ piece.reportDate }} {{ piece.session }}发布</p>
+        </div>
+        <div class="brief-actions">
+          <button class="date-button" type="button" :disabled="!olderPiece" @click="openEarnings(olderPiece)"><el-icon><ArrowLeft /></el-icon><span>前一篇</span></button>
+          <div class="date-current"><el-icon><Calendar /></el-icon>{{ pieceIndex >= 0 ? `${pieceIndex + 1} / ${refs.length}` : '—' }}</div>
+          <button class="date-button next-button" type="button" :disabled="!newerPiece" @click="openEarnings(newerPiece)"><span>后一篇</span><el-icon><ArrowRight /></el-icon></button>
         </div>
       </section>
 
-      <p class="disclaimer"><el-icon><InfoFilled /></el-icon>页面为静态演示，不代表实时行情或投资建议。交易决策请结合可靠数据与自身风险承受能力。</p>
+      <div class="ref-strip">
+        <button v-for="ref in refs" :key="ref.id" type="button" :class="['ref-chip', { active: piece?.id === ref.id }]" @click="openEarnings(ref.id)"><strong>{{ ref.ticker }}</strong><span>{{ ref.company }}</span><small>{{ shortDay(ref.reportDate) }}</small></button>
+      </div>
+
+      <section v-if="!piece" class="panel missing-panel"><el-icon><Warning /></el-icon><div><strong>没有找到财报解读 {{ earnings?.missing }}</strong><p>可从上方列表选择其他公司。</p></div></section>
+
+      <template v-else>
+        <section class="lead-brief">
+          <div class="lead-icon"><el-icon><TrendCharts /></el-icon></div>
+          <div><div class="section-label">财报摘要 <span>{{ piece.ticker }}</span></div><p>{{ piece.headline }}</p></div>
+          <span class="summary-mark">EARNINGS<br />BRIEF</span>
+        </section>
+
+        <section v-if="tiles.length" class="panel tiles-panel">
+          <div class="panel-heading"><div><div class="section-label">核心指标 <span>KEY METRICS</span></div><p>本季关键财务数据与同比变化</p></div><span class="market-status"><i />{{ piece.session }}发布</span></div>
+          <div class="quote-grid tile-grid">
+            <div v-for="tile in tiles" :key="tile.name" class="quote-item">
+              <span class="quote-name">{{ tile.name }}</span><strong>{{ tile.value }}<em v-if="tile.unit">{{ tile.unit }}</em></strong>
+              <span :class="['quote-change', tile.tone]">{{ tile.change }}</span><small v-if="tile.note" class="tile-note">{{ tile.note }}</small>
+            </div>
+          </div>
+        </section>
+
+        <section class="analysis-grid">
+          <article v-if="piece.vsGuide" class="panel">
+            <div class="panel-heading"><div><div class="section-label">{{ piece.vsGuide.title }} <span>VS {{ piece.vsGuide.guideWord === '指引' ? 'GUIDANCE' : 'CONSENSUS' }}</span></div><p>{{ piece.vsGuide.sub }}</p></div><span class="macro-tag">{{ piece.vsGuide.guideLabel }}</span></div>
+            <div class="guide-rows">
+              <div v-for="row in piece.vsGuide.rows" :key="row.label" class="guide-row"><span>{{ row.label }}</span><small>{{ piece.vsGuide.guideWord }} {{ row.guideText }}</small><strong>{{ row.actualText }}</strong><b :class="gapTone(row.gapText)">{{ row.gapText }}</b></div>
+            </div>
+            <p v-if="piece.vsGuide.note" class="block-note">{{ piece.vsGuide.note }}</p>
+          </article>
+
+          <article v-if="piece.trend" class="panel">
+            <div class="panel-heading"><div><div class="section-label">{{ piece.trend.title }} <span>TREND</span></div><p>{{ piece.trend.sub }}</p></div><el-icon class="heading-icon"><DataAnalysis /></el-icon></div>
+            <div class="rev-bars"><div v-for="bar in revBars" :key="bar.q" :class="['rev-bar', { guide: bar.guide }]"><small>{{ bar.gm != null ? `${bar.gm}%` : '' }}</small><i :style="{ height: `${bar.height}%` }" /><b>{{ bar.rev }}</b><span>{{ bar.q }}</span></div></div>
+            <div class="panel-footnote"><el-icon><InfoFilled /></el-icon>柱为收入，上方为{{ piece.trend.gmLabel || '毛利率' }}<template v-if="revBars.some(b => b.guide)">；浅色柱为{{ piece.trend.guideLabel }}</template></div>
+            <p v-if="piece.trend.note" class="block-note">{{ piece.trend.note }}</p>
+          </article>
+        </section>
+
+        <section v-if="piece.segments?.rows?.length" class="panel block-panel">
+          <div class="panel-heading"><div><div class="section-label">{{ piece.segments.title }} <span>SEGMENTS</span></div><p>{{ piece.segments.sub }}</p></div></div>
+          <div class="guide-rows"><div v-for="row in piece.segments.rows" :key="row.name" class="guide-row segment-row"><span>{{ row.name }}</span><small>环比 {{ signed(row.qoq, 0) }} · 毛利率 {{ row.gm }}%</small><strong>{{ row.rev }}</strong><b>占比 {{ row.share }}%</b></div></div>
+          <p v-if="piece.segments.note" class="block-note">{{ piece.segments.note }}</p>
+        </section>
+
+        <section v-if="piece.points?.length" class="panel news-panel">
+          <div class="panel-heading"><div><div class="section-label">电话会与要点 <span>KEY POINTS</span></div><p>管理层表态与值得关注的变化</p></div><span class="news-count">{{ piece.points.length }} 条</span></div>
+          <div class="news-grid"><article v-for="(item, index) in piece.points" :key="item.title" class="news-item"><div class="news-meta"><span :class="['news-category', ['blue', 'purple', 'orange'][index % 3]]">{{ item.tag }}</span><span>{{ String(index + 1).padStart(2, '0') }}</span></div><h3>{{ item.title }}</h3><p>{{ item.body }}</p></article></div>
+        </section>
+
+        <section v-if="piece.sides" class="market-grid sides-grid">
+          <article class="panel"><div class="panel-heading"><div><div class="section-label">{{ piece.sides.goodTitle }} <span>STRENGTHS</span></div></div><span class="side-tag up">利好</span></div><div class="side-list"><div v-for="item in piece.sides.good" :key="item.title" class="side-item"><div><strong>{{ item.title }}</strong><b class="up">{{ item.num }}</b></div><p>{{ item.body }}</p></div></div></article>
+          <article class="panel"><div class="panel-heading"><div><div class="section-label">{{ piece.sides.watchTitle }} <span>WATCH</span></div></div><span class="side-tag down">留意</span></div><div class="side-list"><div v-for="item in piece.sides.watch" :key="item.title" class="side-item"><div><strong>{{ item.title }}</strong><b class="down">{{ item.num }}</b></div><p>{{ item.body }}</p></div></div></article>
+        </section>
+
+        <section v-if="piece.reaction" class="panel reaction-panel">
+          <div class="panel-heading"><div><div class="section-label">{{ piece.reaction.title }} <span>MARKET REACTION</span></div><p>{{ piece.reaction.sub }}</p></div><span class="macro-tag">{{ piece.reaction.impliedText }}</span></div>
+          <div class="quote-grid reaction-facts"><div v-for="fact in piece.reaction.facts" :key="fact.label" class="quote-item"><span class="quote-name">{{ fact.label }}</span><strong :class="toneOfText(fact.value)">{{ fact.value }}</strong><span class="quote-change muted">{{ fact.sub }}</span></div></div>
+          <div v-if="reaction.dots.length" class="reaction-axis">
+            <div class="axis-track"><i v-if="reaction.implied" class="implied-band" :style="{ left: `${reaction.implied.lo}%`, width: `${reaction.implied.hi - reaction.implied.lo}%` }"/><span v-for="dot in reaction.dots" :key="dot.date" :class="['history-dot', { out: dot.out }]" :style="{ left: `${dot.left}%` }" :title="`${dot.date}：${signed(dot.pct, 2)}`"/><b v-if="reaction.now != null" class="now-dot" :style="{ left: `${reaction.now}%` }" :title="piece.reaction.afterText"/></div>
+            <div class="chart-axis static-axis"><span>-{{ reaction.axis }}%</span><span>{{ piece.reaction.dayLabel }} · <b>{{ piece.reaction.nowLabel }} {{ piece.reaction.afterText }}</b></span><span>+{{ reaction.axis }}%</span></div>
+          </div>
+          <p v-if="piece.reaction.historyText" class="block-note">{{ piece.reaction.historyText }}</p>
+          <div v-if="piece.reaction.analysts?.length" class="analyst-list"><div v-for="item in piece.reaction.analysts" :key="item.who" class="analyst-item"><strong>{{ item.who }}</strong><p>{{ item.text }}</p></div></div>
+        </section>
+
+        <section v-if="piece.next?.length" class="panel news-panel">
+          <div class="panel-heading"><div><div class="section-label">接下来看什么 <span>WHAT'S NEXT</span></div><p>后续值得跟踪的时间点</p></div></div>
+          <div class="news-grid"><article v-for="item in piece.next" :key="item.title" class="news-item"><div class="news-meta"><span class="news-category orange">{{ item.when }}</span><span>{{ item.whenSub }}</span></div><h3>{{ item.title }}</h3><p>{{ item.body }}</p></article></div>
+        </section>
+
+        <section v-if="piece.about" class="analysis-grid">
+          <article class="panel"><div class="panel-heading"><div><div class="section-label">公司是做什么的 <span>ABOUT</span></div><p>{{ piece.about.oneLiner }}</p></div></div><div class="guide-rows"><div v-for="line in piece.about.lines" :key="line.name" class="guide-row about-row"><span>{{ line.name }}</span><small>{{ line.what }}</small><b>{{ line.share }}%</b></div></div><p v-if="piece.about.typeNote" class="block-note">{{ piece.about.typeNote }}</p></article>
+          <article v-if="piece.learn" class="panel"><div class="panel-heading"><div><div class="section-label">读懂这份财报 <span>LEARN</span></div><p>关键指标与术语</p></div></div><div class="side-list"><div v-for="step in piece.learn.steps" :key="step.metric" class="side-item"><div><strong>{{ step.metric }}</strong><b>{{ step.thisTime }}</b></div><p>{{ step.what }}{{ step.why }}</p></div></div><div v-if="piece.learn.glossary?.length" class="glossary"><span v-for="g in piece.learn.glossary" :key="g.term" :title="g.plain">{{ g.term }}</span></div></article>
+        </section>
+      </template>
+
+      <section v-if="previews.length" class="panel news-panel">
+        <div class="panel-heading"><div><div class="section-label">财报前瞻 <span>PREVIEWS</span></div><p>即将或刚刚公布财报的公司</p></div><span class="news-count">{{ previews.length }} 篇</span></div>
+        <div class="news-grid preview-grid"><article v-for="item in previews" :key="item.id" class="news-item"><div class="news-meta"><span class="news-category purple">{{ item.ticker }}</span><span>{{ item.reportDate }} {{ item.session }}</span></div><h3>{{ item.title }}</h3><p>{{ item.summary }}</p><ul v-if="item.share?.verdicts?.length" class="verdicts"><li v-for="v in item.share.verdicts" :key="v">{{ v }}</li></ul></article></div>
+      </section>
+
+      <p class="disclaimer"><el-icon><InfoFilled /></el-icon>{{ piece?.notes?.length ? piece.notes.join('；') : '数据来自 OSM 财报解读，由后端定时同步；仅供参考，不构成投资建议。' }}</p>
     </template>
 
+    <!-- 札记 -->
+    <template v-else-if="activeTab === 'notes'">
+      <section class="brief-topline">
+        <div class="brief-heading">
+          <div class="brief-kicker">NOTES <span>·</span> 札记</div>
+          <h2>{{ note ? note.title : '交易员札记' }}</h2>
+          <p>{{ note ? `${note.kind} · ${note.date}` : '系统哲学、案例复盘与交易观察' }}</p>
+        </div>
+        <div class="brief-actions">
+          <button v-if="note" class="date-button" type="button" @click="openNote(null)"><el-icon><ArrowLeft /></el-icon><span>返回列表</span></button>
+          <div class="date-current"><el-icon><Notebook /></el-icon>共 {{ noteList.length }} 篇</div>
+        </div>
+      </section>
+
+      <section v-if="note" class="panel note-detail">
+        <p class="note-summary">{{ note.summary }}</p>
+        <img :src="note.image" :alt="note.title" :style="{ aspectRatio: note.width && note.height ? `${note.width} / ${note.height}` : 'auto' }" loading="lazy" />
+      </section>
+      <section v-else-if="notes?.missing" class="panel missing-panel"><el-icon><Warning /></el-icon><div><strong>没有找到札记 {{ notes.missing }}</strong><p>可从下方列表选择其他札记。</p></div></section>
+
+      <section v-if="!note" class="note-grid">
+        <article v-for="item in noteList" :key="item.id" class="panel note-card" tabindex="0" @click="openNote(item.id)" @keyup.enter="openNote(item.id)">
+          <div class="note-cover"><img :src="item.cover" :alt="item.title" loading="lazy" /></div>
+          <div class="news-meta"><span class="news-category blue">{{ item.kind }}</span><span>{{ item.date }}</span></div>
+          <h3>{{ item.title }}</h3><p>{{ item.summary }}</p>
+        </article>
+      </section>
+
+      <p class="disclaimer"><el-icon><InfoFilled /></el-icon>札记来自 OSM，由后端定时同步；图片直接加载自 osmtrade.com。</p>
+    </template>
+
+    <!-- 事件解读：接口文档暂未提供 -->
     <section v-else class="other-section panel">
       <div class="other-head"><span class="other-icon"><el-icon><component :is="activeSection.icon" /></el-icon></span><div><div class="section-label">{{ activeSection.label }} <span>{{ activeSection.english }}</span></div><p>{{ activeSection.description }}</p></div></div>
-      <div class="other-content"><div class="other-illustration"><el-icon><component :is="activeSection.icon" /></el-icon><span/><span/></div><strong>{{ activeSection.emptyTitle }}</strong><p>{{ activeSection.emptyDescription }}</p><span class="coming-label"><i/>栏目页面已就绪</span></div>
+      <div class="other-content"><div class="other-illustration"><el-icon><component :is="activeSection.icon" /></el-icon><span/><span/></div><strong>{{ activeSection.emptyTitle }}</strong><p>{{ activeSection.emptyDescription }}</p><span class="coming-label"><i/>后端暂未提供事件解读接口</span></div>
     </section>
+
+    <el-dialog v-model="connectVisible" title="连接 OSM 信息数据" width="min(440px, calc(100vw - 32px))" :close-on-click-modal="false">
+      <p class="connect-description">登录后后端会把 OSM 会话 Cookie 保存在 Redis，并立即同步「信息」菜单数据（约 20–40 秒）；本页面不会保存密码。</p>
+      <el-form label-position="top" @submit.prevent="submitConnect">
+        <el-form-item label="OSM 登录邮箱"><el-input v-model="loginForm.email" type="email" autocomplete="username" placeholder="输入 OSM 账号邮箱" /></el-form-item>
+        <el-form-item label="OSM 登录密码"><el-input v-model="loginForm.password" type="password" autocomplete="current-password" show-password placeholder="输入 OSM 登录密码" @keyup.enter="submitConnect" /></el-form-item>
+      </el-form>
+      <p v-if="connectError" class="connection-error">{{ connectError }}</p>
+      <template #footer><el-button @click="connectVisible = false">稍后</el-button><el-button :loading="syncing" @click="submitSyncOnly">仅同步</el-button><el-button type="primary" :loading="connecting" :disabled="!loginForm.email || !loginForm.password" @click="submitConnect">登录并同步</el-button></template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
-import { ArrowLeft, ArrowRight, Calendar, ChatLineRound, DataAnalysis, InfoFilled, Notebook, TrendCharts, Warning } from '@element-plus/icons-vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { ArrowLeft, ArrowRight, Calendar, ChatLineRound, Connection, DataAnalysis, InfoFilled, Loading, Notebook, Refresh, TrendCharts, Warning } from '@element-plus/icons-vue'
+import { getEarningsPage, getInfoFeed, getNotesPage, getPremarketPage, syncAllInfo } from '@/api/option/info'
+import { loginOsmAccount } from '@/api/option/today'
+import { dayLabel, earningsTiles, feedSummary, findBlock, moversPosition, premarketMovers, premarketQuotes, premarketStories, reactionDots, shortDay, signed, trendBars, trendPath, valuationBars } from '@/utils/infoData'
 
 const sections = [
-  { key: 'premarket', label: '盘前简报', hint: '每日市场摘要', english: 'PRE-MARKET', icon: ChatLineRound },
-  { key: 'earnings', label: '财报解读', hint: '业绩与波动观察', english: 'EARNINGS', icon: TrendCharts, description: '围绕财报前瞻、业绩结果与期权波动整理观察。', emptyTitle: '财报日历与解读', emptyDescription: '公司业绩日历、市场预期与财报后的期权波动观察将在这里呈现。' },
+  { key: 'premarket', label: '盘前简报', hint: '每日市场摘要', english: 'PRE-MARKET', icon: ChatLineRound, description: '开盘前的市场脉搏、重点事件与当日观察。' },
+  { key: 'earnings', label: '财报解读', hint: '业绩与波动观察', english: 'EARNINGS', icon: TrendCharts, description: '围绕财报前瞻、业绩结果与期权波动整理观察。' },
   { key: 'events', label: '事件解读', hint: '重要事件梳理', english: 'EVENTS', icon: DataAnalysis, description: '梳理可能影响市场与持仓的重要事件及关注方向。', emptyTitle: '重要事件观察', emptyDescription: '影响市场与持仓的宏观事件和公司事件将在这里集中解读。' },
-  { key: 'notes', label: '札记', hint: '案例与交易思考', english: 'NOTES', icon: Notebook, description: '沉淀系统思路、案例复盘与交易观察。', emptyTitle: '交易员札记', emptyDescription: '系统哲学、案例复盘和交易观察将在这里整理。' }
+  { key: 'notes', label: '札记', hint: '案例与交易思考', english: 'NOTES', icon: Notebook, description: '沉淀系统思路、案例复盘与交易观察。' }
 ]
-const activeTab = ref('premarket')
-const activeSection = computed(() => sections.find(item => item.key === activeTab.value) || sections[0])
-const dateOffset = ref(0)
-const baseDate = new Date(2026, 9, 15)
-const demoDate = computed(() => {
-  const value = new Date(baseDate)
-  value.setDate(value.getDate() + dateOffset.value)
-  return `${value.getMonth() + 1}月${value.getDate()}日 ${['周日', '周一', '周二', '周三', '周四', '周五', '周六'][value.getDay()]}`
-})
-const dateLabel = computed(() => dateOffset.value === 0 ? '演示日期' : `${Math.abs(dateOffset.value)} 天${dateOffset.value < 0 ? '前' : '后'}`)
-function shiftDate(amount) { dateOffset.value += amount }
+const TAB_KEYS = sections.map(s => s.key)
+const route = useRoute()
+const router = useRouter()
 
-const quotes = [
-  { name: '标普 500 期货', value: '—', change: '待更新', tone: 'muted' },
-  { name: '纳指 100 期货', value: '—', change: '待更新', tone: 'muted' },
-  { name: '10 年期美债', value: '—', change: '待更新', tone: 'muted' },
-  { name: '布伦特原油', value: '—', change: '待更新', tone: 'muted' },
-  { name: '黄金', value: '—', change: '待更新', tone: 'muted' },
-  { name: '比特币', value: '—', change: '待更新', tone: 'muted' }
-]
-const stockGroups = [
-  { name: '科技与芯片', tone: 'blue', stocks: [{ symbol: 'NVDA', name: '英伟达', change: '—', tone: 'muted' }, { symbol: 'AVGO', name: '博通', change: '—', tone: 'muted' }, { symbol: 'TSM', name: '台积电', change: '—', tone: 'muted' }] },
-  { name: '重点公司', tone: 'orange', stocks: [{ symbol: 'TSLA', name: '特斯拉', change: '—', tone: 'muted' }, { symbol: 'LLY', name: '礼来', change: '—', tone: 'muted' }] }
-]
-const newsItems = [
-  { category: '市场', tone: 'blue', title: '市场情绪与板块轮动', description: '跟踪指数期货、利率和板块相对表现，观察风险偏好的变化。', tickers: ['SPX', 'NDX'] },
-  { category: '财报', tone: 'purple', title: '重点公司财报日程', description: '留意财报发布时间、市场预期及隐含波动变化。', tickers: ['EARNINGS'] },
-  { category: '宏观', tone: 'orange', title: '宏观数据与利率预期', description: '重要经济数据可能影响利率定价与市场波动。', tickers: ['RATES', 'MACRO'] }
-]
+const activeTab = ref(TAB_KEYS.includes(route.query.tab) ? route.query.tab : 'premarket')
+const activeSection = computed(() => sections.find(item => item.key === activeTab.value) || sections[0])
+const premarket = ref(null)
+const earnings = ref(null)
+const notes = ref(null)
+const infoFeed = ref(null)
+const loading = reactive({ premarket: false, earnings: false, notes: false, events: false })
+const errors = reactive({ premarket: '', earnings: '', notes: '', events: '' })
+const loadedAt = reactive({ premarket: '', earnings: '', notes: '' })
+const dataOf = key => ({ premarket, earnings, notes })[key]?.value
+
+// ---- 盘前简报 ----
+const brief = computed(() => premarket.value?.brief || null)
+const dates = computed(() => premarket.value?.dates || [])
+const currentDate = computed(() => brief.value?.date || premarket.value?.missing || dates.value[0] || '')
+const dateIndex = computed(() => dates.value.indexOf(currentDate.value))
+const olderDate = computed(() => (dateIndex.value >= 0 ? dates.value[dateIndex.value + 1] : dates.value.find(d => d < currentDate.value)) || '')
+const newerDate = computed(() => (dateIndex.value > 0 ? dates.value[dateIndex.value - 1] : dateIndex.value < 0 ? [...dates.value].reverse().find(d => d > currentDate.value) : '') || '')
+const quotes = computed(() => premarketQuotes(brief.value))
+const stockGroups = computed(() => premarketMovers(brief.value))
+const moverPos = computed(() => moversPosition(brief.value))
+const news = computed(() => premarketStories(brief.value))
+const rateBlock = computed(() => findBlock(brief.value, 'rate_path'))
+const gapBlock = computed(() => findBlock(brief.value, 'yield_gap'))
+const valuationBlock = computed(() => findBlock(brief.value, 'valuation_trend'))
+const otherBlocks = computed(() => (brief.value?.blocks || []).filter(b => !['rate_path', 'yield_gap', 'valuation_trend'].includes(b?.type)))
+const rateTrend = computed(() => trendPath(rateBlock.value?.trend))
+const rateAxis = computed(() => {
+  const trend = rateBlock.value?.trend || []
+  if (trend.length < 3) return trend.map(t => t.d)
+  return [trend[0].d, trend[Math.floor(trend.length / 2)].d, trend[trend.length - 1].d]
+})
+const peBars = computed(() => valuationBars(valuationBlock.value))
+
+// ---- 财报解读 ----
+const piece = computed(() => earnings.value?.piece || null)
+const refs = computed(() => earnings.value?.refs || [])
+const previews = computed(() => earnings.value?.previews || [])
+const pieceIndex = computed(() => refs.value.findIndex(r => r.id === piece.value?.id))
+const olderPiece = computed(() => (pieceIndex.value >= 0 ? refs.value[pieceIndex.value + 1]?.id : '') || '')
+const newerPiece = computed(() => (pieceIndex.value > 0 ? refs.value[pieceIndex.value - 1]?.id : '') || '')
+const tiles = computed(() => earningsTiles(piece.value))
+const revBars = computed(() => trendBars(piece.value?.trend))
+const reaction = computed(() => reactionDots(piece.value?.reaction))
+const gapTone = text => (/^(低|少|差|弱|不及)/.test(text || '') ? 'gap-down' : '')
+const toneOfText = text => (/^\s*\+/.test(text || '') ? 'up' : /^\s*[-−]/.test(text || '') ? 'down' : '')
+
+// ---- 札记 ----
+const note = computed(() => notes.value?.note || null)
+const noteList = computed(() => notes.value?.notes || [])
+
+// ---- 信息流（栏目未读 / 最新日期） ----
+const feedStats = computed(() => feedSummary(infoFeed.value))
+function tabHint(item) {
+  if (item.key === 'premarket' && dates.value[0]) return `最新 ${shortDay(dates.value[0])} · 共 ${dates.value.length} 期`
+  if (item.key === 'earnings' && refs.value.length) return `最新 ${refs.value[0].ticker} · 共 ${refs.value.length} 篇`
+  if (item.key === 'notes' && noteList.value.length) return `共 ${noteList.value.length} 篇札记`
+  return item.hint
+}
+
+const showEmpty = computed(() => !dataOf(activeTab.value))
+const badge = computed(() => {
+  const key = activeTab.value
+  if (key === 'events') return { text: '暂无接口', live: false }
+  if (loading[key] && !dataOf(key)) return { text: '正在加载', live: false }
+  if (errors[key] && !dataOf(key)) return { text: '暂无数据', failed: true }
+  return { text: `OSM 同步数据${loadedAt[key] ? ` · ${loadedAt[key]}` : ''}`, live: true }
+})
+
+const nowLabel = () => new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })
+
+async function load(key, param) {
+  const fetcher = { premarket: getPremarketPage, earnings: getEarningsPage, notes: getNotesPage }[key]
+  if (!fetcher) return
+  loading[key] = true
+  try {
+    const data = await fetcher(param)
+    ;({ premarket, earnings, notes })[key].value = data
+    errors[key] = ''
+    loadedAt[key] = nowLabel()
+  } catch (error) {
+    errors[key] = error.message || '加载失败'
+    if (dataOf(key)) ElMessage.warning(errors[key])
+  } finally {
+    loading[key] = false
+  }
+}
+async function loadFeed() {
+  try { infoFeed.value = await getInfoFeed() } catch { infoFeed.value = null }
+}
+
+function syncQuery(patch) {
+  const query = { ...route.query, ...patch }
+  Object.keys(query).forEach(k => (query[k] === undefined || query[k] === null || query[k] === '') && delete query[k])
+  router.replace({ query })
+}
+function switchTab(key) {
+  if (key === activeTab.value) return
+  activeTab.value = key
+  syncQuery({ tab: key, d: undefined, id: undefined })
+  if (!dataOf(key) && key !== 'events') load(key)
+}
+function openPremarket(date) {
+  if (!date) return
+  syncQuery({ tab: 'premarket', d: date === dates.value[0] ? undefined : date })
+  load('premarket', date)
+}
+function openEarnings(id) {
+  if (!id) return
+  syncQuery({ tab: 'earnings', id })
+  load('earnings', id)
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+function openNote(id) {
+  syncQuery({ tab: 'notes', id: id || undefined })
+  load('notes', id || undefined)
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+function currentParam(key) {
+  if (key === 'premarket') return brief.value ? (currentDate.value === dates.value[0] ? undefined : currentDate.value) : route.query.d
+  if (key === 'earnings') return piece.value?.id || route.query.id
+  if (key === 'notes') return note.value?.id || route.query.id
+  return undefined
+}
+function reload() {
+  loadFeed()
+  if (activeTab.value !== 'events') load(activeTab.value, currentParam(activeTab.value))
+}
+
+// ---- 连接 OSM ----
+const connectVisible = ref(false)
+const connecting = ref(false)
+const syncing = ref(false)
+const connectError = ref('')
+const loginForm = reactive({ email: '', password: '' })
+async function runSync() {
+  const res = await syncAllInfo()
+  const results = Object.values(res?.data || {})
+  const failed = results.filter(r => r?.result === 'FAILED' || r?.result === 'PAUSED')
+  if (failed.length) throw new Error(failed[0].message || '部分栏目同步失败')
+}
+async function afterSync() {
+  connectVisible.value = false
+  loginForm.password = ''
+  ElMessage.success('信息数据已同步')
+  await Promise.all([loadFeed(), load('premarket'), load('earnings'), load('notes')])
+}
+async function submitConnect() {
+  if (!loginForm.email.trim() || !loginForm.password) return
+  connecting.value = true
+  connectError.value = ''
+  try {
+    await loginOsmAccount({ email: loginForm.email.trim(), password: loginForm.password })
+    await runSync()
+    await afterSync()
+  } catch (error) {
+    connectError.value = error.message || '连接失败'
+  } finally {
+    connecting.value = false
+  }
+}
+async function submitSyncOnly() {
+  syncing.value = true
+  connectError.value = ''
+  try {
+    await runSync()
+    await afterSync()
+  } catch (error) {
+    connectError.value = error.message || '同步失败'
+  } finally {
+    syncing.value = false
+  }
+}
+
+watch(() => route.query.tab, tab => { if (TAB_KEYS.includes(tab) && tab !== activeTab.value) { activeTab.value = tab; if (!dataOf(tab)) load(tab) } })
+
+onMounted(() => {
+  loadFeed()
+  const tab = activeTab.value
+  load('premarket', tab === 'premarket' ? route.query.d : undefined)
+  load('earnings', tab === 'earnings' ? route.query.id : undefined)
+  load('notes', tab === 'notes' ? route.query.id : undefined)
+})
 </script>
 
 <style scoped>
@@ -158,4 +506,22 @@ const newsItems = [
 @media(max-width:900px){.market-grid,.analysis-grid{grid-template-columns:1fr 1fr}.quote-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.quote-item{min-height:65px}.stock-groups{gap:9px}.news-grid{grid-template-columns:1fr 1fr}.news-item:last-child{display:none}}
 @media(max-width:650px){.page-heading{align-items:flex-start}.page-heading h1{font-size:23px}.demo-badge{padding:6px 8px;font-size:9px}.info-tabs{gap:3px;padding:5px;overflow:auto}.info-tab{flex:none;min-width:105px;padding:8px}.info-tab small{font-size:8px}.brief-topline{align-items:flex-start;flex-direction:column}.brief-actions{width:100%;justify-content:space-between}.brief-heading h2{font-size:19px}.lead-brief{padding:12px}.lead-brief p{font-size:10px}.summary-mark{display:none}.market-grid,.analysis-grid{grid-template-columns:1fr;gap:10px;margin-bottom:10px}.panel{padding:13px}.quote-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.quote-item{min-height:63px;padding:7px}.quote-name{font-size:8px}.quote-item strong{font-size:14px}.news-grid{grid-template-columns:1fr}.news-item:last-child{display:block}.news-item{min-height:0}.news-item p{min-height:0}.other-section{padding:14px}.other-content{min-height:270px}}
 @media(max-width:390px){.info-tab{min-width:95px;grid-template-columns:24px 1fr;column-gap:6px}.info-tab>.el-icon{width:24px;height:24px}.info-tab span{font-size:10px}.info-tab small{font-size:7px}.quote-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.date-button,.date-current{padding:0 7px;font-size:9px}.section-label{font-size:11px}}
+.heading-actions{display:flex;align-items:center;gap:7px}.heading-actions .date-button{height:30px}.demo-badge.live i{background:#58b88a;box-shadow:0 0 0 3px #58b88a1a}.demo-badge.failed{color:#c47a54;border-color:#f2e2d6}.demo-badge.failed i{background:#e1a054}.date-button:disabled{cursor:not-allowed;opacity:.45}.date-button:disabled:hover{border-color:var(--line);color:#71849a}.date-current.clickable{cursor:pointer}.date-current.clickable:hover{border-color:#c6dbf2}.spinning{animation:info-spin 1s linear infinite}@keyframes info-spin{to{transform:rotate(360deg)}}
+.tab-unread{display:inline-block;min-width:14px;margin-left:5px;padding:0 4px;border-radius:7px;background:#e76c6c;color:#fff;font-size:8px;font-style:normal;line-height:14px;text-align:center}
+.panel-empty{margin:18px 0;color:#a4afbc;font-size:9px;text-align:center}.block-note{margin:10px 0 0;color:#8a9aab;font-size:9px;line-height:1.65}.block-panel{margin-bottom:13px}.news-count{color:#a3b0bf;font-size:9px}
+.missing-panel{display:flex;align-items:center;gap:10px;margin-bottom:13px;color:#c78b40}.missing-panel strong{color:#506b89;font-size:11px}.missing-panel p{margin:4px 0 0;color:#97a5b4;font-size:9px}
+.connect-action{display:flex;align-items:center;gap:6px;padding:7px 12px;border:1px solid #c6dbf2;border-radius:8px;background:#f4f9ff;color:#3275bd;font-size:10px;cursor:pointer}.connect-action:hover{background:#e8f2fe}.connect-description{margin:0 0 12px;color:#7f91a8;font-size:12px;line-height:1.6}.connection-error{margin:0;color:#d66767;font-size:12px}
+.probability-chart .trend-svg{position:absolute;left:0;right:0;top:0;width:100%;height:calc(100% - 15px);overflow:visible}.trend-svg polyline{fill:none;stroke:#4f91d0;stroke-width:2;vector-effect:non-scaling-stroke;stroke-linejoin:round}.trend-dots{position:absolute;left:0;right:0;top:0;height:calc(100% - 15px)}.trend-dots span{position:absolute;width:6px;height:6px;margin:-3px 0 0 -3px;border:2px solid #fff;border-radius:50%;background:#4c8fce;box-shadow:0 0 0 1px #4c8fce}
+.earnings-strip small{color:#9aa8b7;font-size:8px;font-weight:500}
+.ref-strip{display:flex;gap:6px;margin:0 0 13px;padding:6px;overflow-x:auto;background:#fff;border:1px solid var(--line);border-radius:11px}.ref-chip{flex:none;display:flex;align-items:baseline;gap:5px;padding:7px 10px;border:0;border-radius:8px;background:transparent;color:#71839a;cursor:pointer}.ref-chip:hover{background:#f6f9fd}.ref-chip.active{background:#edf5ff;color:#2e72bb}.ref-chip strong{font-size:11px}.ref-chip span{font-size:9px}.ref-chip small{color:#a3b0bf;font-size:8px}
+.tiles-panel{margin-bottom:13px}.tile-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.quote-item strong em{margin-left:2px;color:#8a9aab;font-size:10px;font-style:normal;font-weight:600}.tile-note{color:#a7b2bf;font-size:8px}.quote-item strong.up{color:#299972}.quote-item strong.down{color:#d66767}
+.guide-rows{display:flex;flex-direction:column;gap:6px}.guide-row{display:grid;grid-template-columns:80px 1fr auto auto;align-items:center;gap:9px;padding:8px 10px;border:1px solid #eff3f7;border-radius:7px;background:#fcfdff}.guide-row span{color:#426080;font-size:10px;font-weight:700}.guide-row small{color:#9aa8b7;font-size:9px}.guide-row strong{color:#415a76;font-size:11px}.guide-row b{min-width:62px;padding:3px 6px;border-radius:4px;background:#eef8f3;color:#299972;font-size:9px;text-align:center}.guide-row b.gap-down{background:#fdf0f0;color:#d66767}.about-row{grid-template-columns:70px 1fr auto}.about-row b{background:#edf5ff;color:#3d82c8}.segment-row b{background:#f3efff;color:#8975c2}
+.rev-bars{height:150px;display:flex;align-items:flex-end;gap:10px;padding:0 6px 4px;border-bottom:1px solid #e9eff5}.rev-bar{flex:1;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:3px}.rev-bar small{color:#c78b40;font-size:8px}.rev-bar i{width:60%;max-width:34px;border-radius:5px 5px 1px 1px;background:linear-gradient(180deg,#7fb0df,#d7e7f7)}.rev-bar.guide i{background:repeating-linear-gradient(45deg,#e3eef9,#e3eef9 4px,#f4f8fc 4px,#f4f8fc 8px);border:1px dashed #9fc2e6}.rev-bar b{color:#45617f;font-size:9px}.rev-bar span{color:#a2afbd;font-size:8px;white-space:nowrap}
+.sides-grid{grid-template-columns:1fr 1fr}.side-tag{padding:4px 7px;border-radius:5px;font-size:8px}.side-tag.up{background:#eef8f3;color:#299972}.side-tag.down{background:#fdf0f0;color:#d66767}.side-list{display:flex;flex-direction:column;gap:7px}.side-item{padding:9px 10px;border:1px solid #eff3f7;border-radius:8px;background:#fcfdff}.side-item>div{display:flex;justify-content:space-between;gap:8px}.side-item strong{color:#405a77;font-size:10px}.side-item b{color:#5c7490;font-size:9px;text-align:right}.side-item b.up{color:#299972}.side-item b.down{color:#d66767}.side-item p{margin:5px 0 0;color:#929faf;font-size:9px;line-height:1.55}
+.reaction-panel{margin-bottom:13px}.reaction-facts{grid-template-columns:repeat(4,minmax(0,1fr))}.reaction-axis{margin:16px 4px 0}.axis-track{position:relative;height:26px;border-radius:6px;background:#f6f9fd}.implied-band{position:absolute;top:0;bottom:0;background:#e3eefa;border-left:1px dashed #9fc2e6;border-right:1px dashed #9fc2e6}.history-dot{position:absolute;top:50%;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:#9fb5cc;opacity:.85}.history-dot.out{background:#e1a054}.now-dot{position:absolute;top:2px;bottom:2px;width:3px;margin-left:-1px;border-radius:2px;background:#d66767}.static-axis{position:static;margin-top:6px}.static-axis b{color:#d66767;font-weight:650}.analyst-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}.analyst-item{padding:9px 10px;border-radius:8px;background:#f7f9fc}.analyst-item strong{color:#426080;font-size:10px}.analyst-item p{margin:5px 0 0;color:#8a9aab;font-size:9px;line-height:1.55}
+.glossary{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}.glossary span{padding:4px 7px;border-radius:4px;background:#f0f4f8;color:#6f849b;font-size:8px;cursor:help}.preview-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.verdicts{margin:9px 0 0;padding-left:14px;color:#7f91a8;font-size:8px;line-height:1.7}
+.note-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px;margin-bottom:13px}.note-card{display:flex;flex-direction:column;cursor:pointer;transition:border-color .16s,box-shadow .16s}.note-card:hover,.note-card:focus{border-color:#c6dbf2;box-shadow:0 6px 18px #203f6214;outline:none}.note-cover{height:150px;margin:-15px -16px 12px;overflow:hidden;border-radius:12px 12px 0 0;background:#f0f5fb}.note-cover img{width:100%;height:100%;object-fit:cover;display:block}.note-card h3{margin:10px 0 6px;color:#405a77;font-size:12px;line-height:1.4}.note-card p{margin:0;color:#929faf;font-size:9px;line-height:1.6}
+.note-detail{margin-bottom:13px;text-align:center}.note-summary{max-width:720px;margin:2px auto 14px;color:#71849a;font-size:11px;line-height:1.7;text-align:left}.note-detail img{display:block;width:100%;max-width:720px;margin:0 auto;border-radius:9px;background:#f0f5fb}
+@media(max-width:900px){.tile-grid,.reaction-facts{grid-template-columns:repeat(2,minmax(0,1fr))}.note-grid{grid-template-columns:1fr 1fr}.analyst-list{grid-template-columns:1fr}}
+@media(max-width:650px){.page-heading{flex-wrap:wrap;gap:10px}.sides-grid,.preview-grid,.note-grid{grid-template-columns:1fr}.guide-row{grid-template-columns:1fr auto;row-gap:4px}.guide-row small{grid-column:1/3;grid-row:2}.rev-bars{gap:5px}}
 </style>
