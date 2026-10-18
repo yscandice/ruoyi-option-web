@@ -24,8 +24,9 @@
       <div class="other-content">
         <div class="other-illustration"><el-icon v-if="!loading[activeTab]"><component :is="activeSection.icon" /></el-icon><el-icon v-else class="spinning"><Loading /></el-icon><span/><span/></div>
         <strong>{{ loading[activeTab] ? '正在加载数据' : '暂无数据' }}</strong>
-        <p>{{ loading[activeTab] ? '正在从本地服务读取 OSM 同步数据…' : (errors[activeTab] || '后端尚未同步该栏目的数据。') }}</p>
-        <button v-if="!loading[activeTab]" class="connect-action" type="button" @click="connectVisible = true"><el-icon><Connection /></el-icon>连接 OSM 并同步</button>
+        <p>{{ loading[activeTab] ? '正在从本地服务读取 OSM 同步数据…' : (errors[activeTab] || '后端尚未同步该栏目的数据，可立即同步或等待定时任务。') }}</p>
+        <button v-if="!loading[activeTab]" class="connect-action" type="button" :disabled="syncing" @click="syncNow"><el-icon :class="{ spinning: syncing }"><Refresh /></el-icon>{{ syncing ? '正在同步（约 20–40 秒）' : '立即同步' }}</button>
+        <p v-if="syncNotice && !loading[activeTab]" :class="['sync-notice', syncNotice.type]">{{ syncNotice.text }}<router-link v-if="syncNotice.type === 'paused'" to="/today">前往「今日」</router-link></p>
       </div>
     </section>
 
@@ -279,15 +280,6 @@
       <div class="other-content"><div class="other-illustration"><el-icon><component :is="activeSection.icon" /></el-icon><span/><span/></div><strong>{{ activeSection.emptyTitle }}</strong><p>{{ activeSection.emptyDescription }}</p><span class="coming-label"><i/>后端暂未提供事件解读接口</span></div>
     </section>
 
-    <el-dialog v-model="connectVisible" title="连接 OSM 信息数据" width="min(440px, calc(100vw - 32px))" :close-on-click-modal="false">
-      <p class="connect-description">登录后后端会把 OSM 会话 Cookie 保存在 Redis，并立即同步「信息」菜单数据（约 20–40 秒）；本页面不会保存密码。</p>
-      <el-form label-position="top" @submit.prevent="submitConnect">
-        <el-form-item label="OSM 登录邮箱"><el-input v-model="loginForm.email" type="email" autocomplete="username" placeholder="输入 OSM 账号邮箱" /></el-form-item>
-        <el-form-item label="OSM 登录密码"><el-input v-model="loginForm.password" type="password" autocomplete="current-password" show-password placeholder="输入 OSM 登录密码" @keyup.enter="submitConnect" /></el-form-item>
-      </el-form>
-      <p v-if="connectError" class="connection-error">{{ connectError }}</p>
-      <template #footer><el-button @click="connectVisible = false">稍后</el-button><el-button :loading="syncing" @click="submitSyncOnly">仅同步</el-button><el-button type="primary" :loading="connecting" :disabled="!loginForm.email || !loginForm.password" @click="submitConnect">登录并同步</el-button></template>
-    </el-dialog>
   </div>
 </template>
 
@@ -295,9 +287,8 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { ArrowLeft, ArrowRight, Calendar, ChatLineRound, Connection, DataAnalysis, InfoFilled, Loading, Notebook, Refresh, TrendCharts, Warning } from '@element-plus/icons-vue'
+import { ArrowLeft, ArrowRight, Calendar, ChatLineRound, DataAnalysis, InfoFilled, Loading, Notebook, Refresh, TrendCharts, Warning } from '@element-plus/icons-vue'
 import { getEarningsPage, getInfoFeed, getNotesPage, getPremarketPage, syncAllInfo } from '@/api/option/info'
-import { loginOsmAccount } from '@/api/option/today'
 import { dayLabel, earningsTiles, feedSummary, findBlock, moversPosition, premarketMovers, premarketQuotes, premarketStories, reactionDots, shortDay, signed, trendBars, trendPath, valuationBars } from '@/utils/infoData'
 
 const sections = [
@@ -375,7 +366,7 @@ const badge = computed(() => {
   const key = activeTab.value
   if (key === 'events') return { text: '暂无接口', live: false }
   if (loading[key] && !dataOf(key)) return { text: '正在加载', live: false }
-  if (errors[key] && !dataOf(key)) return { text: '暂无数据', failed: true }
+  if (!dataOf(key)) return { text: '暂无数据', failed: true }
   return { text: `OSM 同步数据${loadedAt[key] ? ` · ${loadedAt[key]}` : ''}`, live: true }
 })
 
@@ -391,7 +382,8 @@ async function load(key, param) {
     errors[key] = ''
     loadedAt[key] = nowLabel()
   } catch (error) {
-    errors[key] = error.message || '加载失败'
+    const message = error.message || '加载失败'
+    errors[key] = /暂无数据/.test(message) ? '' : message
     if (dataOf(key)) ElMessage.warning(errors[key])
   } finally {
     loading[key] = false
@@ -439,46 +431,32 @@ function reload() {
   if (activeTab.value !== 'events') load(activeTab.value, currentParam(activeTab.value))
 }
 
-// ---- 连接 OSM ----
-const connectVisible = ref(false)
-const connecting = ref(false)
+// ---- 立即同步：后端直接使用 Redis 中「今日」页登录保存的 OSM 会话 Cookie ----
 const syncing = ref(false)
-const connectError = ref('')
-const loginForm = reactive({ email: '', password: '' })
-async function runSync() {
-  const res = await syncAllInfo()
-  const results = Object.values(res?.data || {})
-  const failed = results.filter(r => r?.result === 'FAILED' || r?.result === 'PAUSED')
-  if (failed.length) throw new Error(failed[0].message || '部分栏目同步失败')
-}
-async function afterSync() {
-  connectVisible.value = false
-  loginForm.password = ''
-  ElMessage.success('信息数据已同步')
-  await Promise.all([loadFeed(), load('premarket'), load('earnings'), load('notes')])
-}
-async function submitConnect() {
-  if (!loginForm.email.trim() || !loginForm.password) return
-  connecting.value = true
-  connectError.value = ''
-  try {
-    await loginOsmAccount({ email: loginForm.email.trim(), password: loginForm.password })
-    await runSync()
-    await afterSync()
-  } catch (error) {
-    connectError.value = error.message || '连接失败'
-  } finally {
-    connecting.value = false
-  }
-}
-async function submitSyncOnly() {
+const syncNotice = ref(null)
+const SESSION_EXPIRED = 'OSM 会话已过期，请到『今日』页重新连接。'
+async function syncNow() {
   syncing.value = true
-  connectError.value = ''
+  syncNotice.value = null
   try {
-    await runSync()
-    await afterSync()
+    const res = await syncAllInfo()
+    const results = Object.values(res?.data || {})
+    if (results.some(r => r?.result === 'PAUSED')) {
+      syncNotice.value = { type: 'paused', text: SESSION_EXPIRED }
+      return
+    }
+    await Promise.all([loadFeed(), load('premarket'), load('earnings'), load('notes')])
+    const failed = results.filter(r => r?.result === 'FAILED')
+    if (failed.length) {
+      syncNotice.value = { type: 'failed', text: `部分栏目同步失败：${failed[0].message || '请稍后重试'}` }
+    } else {
+      ElMessage.success('信息数据已同步')
+    }
   } catch (error) {
-    connectError.value = error.message || '同步失败'
+    const message = error.message || ''
+    syncNotice.value = /没有权限|403/.test(message)
+      ? { type: 'forbidden', text: '当前账号没有同步权限（option:sync:run），请等待定时任务自动同步，或联系管理员。' }
+      : { type: 'failed', text: `同步失败：${message || '请稍后重试'}` }
   } finally {
     syncing.value = false
   }
@@ -510,7 +488,7 @@ onMounted(() => {
 .tab-unread{display:inline-block;min-width:14px;margin-left:5px;padding:0 4px;border-radius:7px;background:#e76c6c;color:#fff;font-size:8px;font-style:normal;line-height:14px;text-align:center}
 .panel-empty{margin:18px 0;color:#a4afbc;font-size:9px;text-align:center}.block-note{margin:10px 0 0;color:#8a9aab;font-size:9px;line-height:1.65}.block-panel{margin-bottom:13px}.news-count{color:#a3b0bf;font-size:9px}
 .missing-panel{display:flex;align-items:center;gap:10px;margin-bottom:13px;color:#c78b40}.missing-panel strong{color:#506b89;font-size:11px}.missing-panel p{margin:4px 0 0;color:#97a5b4;font-size:9px}
-.connect-action{display:flex;align-items:center;gap:6px;padding:7px 12px;border:1px solid #c6dbf2;border-radius:8px;background:#f4f9ff;color:#3275bd;font-size:10px;cursor:pointer}.connect-action:hover{background:#e8f2fe}.connect-description{margin:0 0 12px;color:#7f91a8;font-size:12px;line-height:1.6}.connection-error{margin:0;color:#d66767;font-size:12px}
+.connect-action{display:flex;align-items:center;gap:6px;padding:7px 12px;border:1px solid #c6dbf2;border-radius:8px;background:#f4f9ff;color:#3275bd;font-size:10px;cursor:pointer}.connect-action:hover{background:#e8f2fe}.connect-action:disabled{cursor:wait;opacity:.7}.sync-notice{max-width:420px;margin:10px 0 0;color:#97a5b4;font-size:9px;line-height:1.6}.sync-notice.paused,.sync-notice.failed{color:#d66767}.sync-notice.forbidden{color:#c78b40}.sync-notice a{margin-left:6px;color:#3275bd;text-decoration:none}.sync-notice a:hover{text-decoration:underline}
 .probability-chart .trend-svg{position:absolute;left:0;right:0;top:0;width:100%;height:calc(100% - 15px);overflow:visible}.trend-svg polyline{fill:none;stroke:#4f91d0;stroke-width:2;vector-effect:non-scaling-stroke;stroke-linejoin:round}.trend-dots{position:absolute;left:0;right:0;top:0;height:calc(100% - 15px)}.trend-dots span{position:absolute;width:6px;height:6px;margin:-3px 0 0 -3px;border:2px solid #fff;border-radius:50%;background:#4c8fce;box-shadow:0 0 0 1px #4c8fce}
 .earnings-strip small{color:#9aa8b7;font-size:8px;font-weight:500}
 .ref-strip{display:flex;gap:6px;margin:0 0 13px;padding:6px;overflow-x:auto;background:#fff;border:1px solid var(--line);border-radius:11px}.ref-chip{flex:none;display:flex;align-items:baseline;gap:5px;padding:7px 10px;border:0;border-radius:8px;background:transparent;color:#71839a;cursor:pointer}.ref-chip:hover{background:#f6f9fd}.ref-chip.active{background:#edf5ff;color:#2e72bb}.ref-chip strong{font-size:11px}.ref-chip span{font-size:9px}.ref-chip small{color:#a3b0bf;font-size:8px}
