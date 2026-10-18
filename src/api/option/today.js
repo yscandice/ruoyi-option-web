@@ -10,3 +10,5 @@ export const getManagementChoices = () => http.get('/api/member/management-choic
 export const getPremarketBrief = date => http.get('/api/member/premarket', { params: { d: date } })
 export const getOptionUpdates = () => http.get('/api/member/updates')
 export const getOptionSupport = () => http.get('/api/member/support')
+export const syncTodayFeed = () => http.post('/option/sync/feed')
+export const syncOptionResources = () => http.post('/option/sync/resource/all')

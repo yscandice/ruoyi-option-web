@@ -28,7 +28,7 @@ http.interceptors.response.use(response => {
     removeToken()
     if (location.pathname !== '/login') location.href = `/login?redirect=${encodeURIComponent(location.pathname + location.search)}`
   }
-  const message = error.response?.data?.msg || error.message || '网络请求失败'
+  const message = error.response?.data?.msg || error.response?.data?.error || error.message || '网络请求失败'
   return Promise.reject(new Error(message))
 })
 
