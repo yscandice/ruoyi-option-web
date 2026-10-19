@@ -2,136 +2,191 @@
   <div class="updates-page">
     <section class="page-heading">
       <div>
-        <span class="eyebrow"><i /> PRODUCT UPDATES</span>
-        <h1>功能更新</h1>
-        <p>查看工作台的新功能、体验优化与问题修复。</p>
+        <span class="eyebrow"><i /> {{ summary?.kick || 'PRODUCT UPDATES' }}</span>
+        <h1>{{ summary?.title || '功能更新' }}</h1>
+        <p v-if="summary?.subHtml" class="heading-sub" @click="onRichClick" v-html="summary.subHtml" />
+        <p v-else>查看工作台的新功能、体验优化与问题修复。</p>
       </div>
-      <span class="demo-chip"><el-icon><InfoFilled /></el-icon> 静态演示内容</span>
+      <span class="demo-chip"><i :class="['sync-dot', { stale: !summary }]" /> {{ syncLabel }}</span>
     </section>
 
-    <section class="updates-hero panel">
-      <div class="hero-copy">
-        <span class="hero-kicker"><el-icon><Bell /></el-icon> RELEASE NOTES</span>
-        <h2>每一次更新，都让工作台更清晰</h2>
-        <p>这里集中展示产品功能变化、使用体验优化和修复记录，方便你快速了解工作台的迭代内容。</p>
-        <div class="hero-meta"><span><el-icon><Calendar /></el-icon> 按更新时间整理</span><span><el-icon><Tickets /></el-icon> 功能 · 优化 · 修复</span></div>
-      </div>
-      <div class="hero-art" aria-hidden="true">
-        <div class="orbit orbit-one" /><div class="orbit orbit-two" />
-        <div class="note-sheet"><span class="note-dot"/><i/><i/><i class="short-line"/><b><el-icon><Check /></el-icon></b></div>
-        <span class="sparkle sparkle-one">✦</span><span class="sparkle sparkle-two">✦</span>
-      </div>
+    <section v-if="!ready" class="status-panel panel">
+      <span class="empty-icon"><el-icon><component :is="loading ? Loading : Bell" :class="{ spinning: loading }" /></el-icon></span>
+      <strong>{{ loading ? '正在读取功能更新…' : '暂无数据' }}</strong>
+      <p>{{ loading ? '正在从本地服务读取 OSM 同步的功能更新' : (error || '后端定时任务尚未同步更新菜单的数据，请稍后刷新。') }}</p>
+      <span v-if="!loading && !error" class="deploy-tip"><i />首次部署请由管理员在若依后台「系统监控 → 定时任务」对「OSM更新菜单强制同步」执行一次</span>
+      <button v-if="!loading" type="button" @click="loadAll">重新加载</button>
     </section>
 
-    <section class="updates-toolbar panel" aria-label="筛选更新">
-      <div class="toolbar-label"><strong>更新记录</strong><span>{{ visibleUpdates.length }} 条内容</span></div>
-      <div class="filter-tabs" role="tablist" aria-label="更新类型">
-        <button v-for="filter in filters" :key="filter.value" :class="['filter-tab', { selected: activeFilter === filter.value }]" @click="activeFilter = filter.value">{{ filter.label }}</button>
-      </div>
-      <label class="search-box"><el-icon><Search /></el-icon><input v-model="searchText" type="search" placeholder="搜索更新内容" aria-label="搜索更新内容" /></label>
-    </section>
-
-    <section v-if="featuredUpdate && activeFilter === 'all' && !searchText" class="featured-update panel">
-      <div class="featured-mark"><el-icon><Promotion /></el-icon></div>
-      <div class="featured-body">
-        <div class="update-meta"><span class="type-pill feature-pill">重点更新</span><span>最近更新</span><span class="meta-divider">·</span><span>产品工作台</span></div>
-        <h2>{{ featuredUpdate.title }}</h2>
-        <p>{{ featuredUpdate.summary }}</p>
-        <button class="text-action" @click="openUpdate(featuredUpdate)">查看更新详情 <el-icon><ArrowRight /></el-icon></button>
-      </div>
-      <span class="featured-version">NEW</span>
-    </section>
-
-    <section class="timeline-section">
-      <div class="timeline-heading"><div><span class="section-kicker">WHAT'S NEW</span><h2>近期更新</h2></div><span class="timeline-note"><i /> 更新记录演示</span></div>
-      <div v-if="visibleUpdates.length" class="timeline-list">
-        <article v-for="(item, index) in visibleUpdates" :key="item.id" class="update-row">
-          <div class="date-column"><span class="date-label">{{ item.date }}</span><span class="timeline-marker" :class="item.type" /></div>
-          <div class="update-card panel">
-            <div class="card-topline">
-              <div class="update-meta"><span :class="['type-pill', `${item.type}-pill`]">{{ item.typeLabel }}</span><span>{{ item.area }}</span><span class="meta-divider">·</span><span>{{ item.release }}</span></div>
-              <span v-if="index === 0" class="latest-label">最新</span>
-            </div>
-            <h3>{{ item.title }}</h3>
-            <p>{{ item.summary }}</p>
-            <div class="tag-list"><span v-for="tag in item.tags" :key="tag">{{ tag }}</span></div>
-            <button class="detail-action" @click="openUpdate(item)">查看详情 <el-icon><ArrowRight /></el-icon></button>
+    <template v-else>
+      <section class="updates-hero panel">
+        <div class="hero-copy">
+          <span class="hero-kicker"><el-icon><Bell /></el-icon> RELEASE NOTES</span>
+          <h2>{{ entries.length }} 条上线记录，最新一条在 {{ formatDate(summary.latestDate) }}</h2>
+          <p>{{ summary.foot || '只记会员能直接用上的改动。' }}</p>
+          <div class="hero-meta">
+            <span><el-icon><Calendar /></el-icon> {{ formatDate(summary.earliestDate) }} — {{ formatDate(summary.latestDate) }}</span>
+            <span><el-icon><Tickets /></el-icon> {{ monthLine }}</span>
+            <span v-if="summary.visuals"><el-icon><VideoPlay /></el-icon> 视频 {{ summary.visuals.video || 0 }} · 示意图 {{ summary.visuals.svg || 0 }}</span>
           </div>
-        </article>
-      </div>
-      <div v-else class="empty-state panel"><span class="empty-icon"><el-icon><Search /></el-icon></span><strong>没有找到匹配的更新</strong><p>试试其他关键词或更新类型。</p><button @click="resetFilters">清除筛选</button></div>
-    </section>
+        </div>
+        <div class="hero-art" aria-hidden="true">
+          <div class="orbit orbit-one" /><div class="orbit orbit-two" />
+          <div class="note-sheet"><span class="note-dot"/><i/><i/><i class="short-line"/><b><el-icon><Check /></el-icon></b></div>
+          <span class="sparkle sparkle-one">✦</span><span class="sparkle sparkle-two">✦</span>
+        </div>
+      </section>
 
-    <section class="subscribe-card panel">
-      <div class="subscribe-icon"><el-icon><Message /></el-icon></div>
-      <div><h3>持续关注工作台变化</h3><p>重要功能说明会在对应页面同步展示，建议结合页面内的提示一起查看。</p></div>
-      <span class="subscribe-state"><el-icon><CircleCheck /></el-icon> 页面内查看</span>
-    </section>
+      <section class="updates-toolbar panel" aria-label="筛选更新">
+        <div class="toolbar-label"><strong>更新记录</strong><span>{{ visibleUpdates.length }} 条内容</span></div>
+        <div class="filter-tabs" role="tablist" aria-label="更新类型">
+          <button v-for="filter in filters" :key="filter.value" :class="['filter-tab', { selected: activeFilter === filter.value }]" @click="selectFilter(filter.value)">{{ filter.label }}<em>{{ filterCount(filter.value) }}</em></button>
+        </div>
+        <label class="search-box"><el-icon><Search /></el-icon><input v-model="searchText" type="search" placeholder="搜索更新内容" aria-label="搜索更新内容" /></label>
+      </section>
 
-    <el-dialog v-model="detailVisible" :title="selectedUpdate?.title || '更新详情'" width="min(560px, calc(100vw - 32px))" class="update-dialog">
+      <section v-if="featuredUpdate && activeFilter === 'all' && !searchText" class="featured-update panel">
+        <div class="featured-mark"><el-icon><Promotion /></el-icon></div>
+        <div class="featured-body">
+          <div class="update-meta"><span :class="['type-pill', `${featuredUpdate.type}-pill`]">{{ featuredUpdate.typeLabel }}</span><span>{{ formatDate(featuredUpdate.date) }}</span><span class="meta-divider">·</span><span>{{ featuredUpdate.area }}</span></div>
+          <h2>{{ featuredUpdate.title }}</h2>
+          <p class="clamp-3">{{ featuredUpdate.what }}</p>
+          <button class="text-action" @click="openUpdate(featuredUpdate)">查看更新详情 <el-icon><ArrowRight /></el-icon></button>
+        </div>
+        <div v-if="featuredUpdate.cover" class="featured-cover" :style="{ backgroundImage: `url(${featuredUpdate.cover})` }" />
+        <span class="featured-version">{{ unseen > 0 ? `${unseen} 条未读` : 'NEW' }}</span>
+      </section>
+
+      <section class="timeline-section">
+        <div class="timeline-heading"><div><span class="section-kicker">WHAT'S NEW</span><h2>近期更新</h2></div><span class="timeline-note"><i /> 来自 OSM 功能更新</span></div>
+        <div v-if="visibleUpdates.length" class="timeline-list">
+          <article v-for="item in shownUpdates" :key="item.key" class="update-row">
+            <div class="date-column"><span class="date-label">{{ formatDate(item.date) }}</span><span class="timeline-marker" :class="item.type" /></div>
+            <div class="update-card panel">
+              <div class="card-topline">
+                <div class="update-meta"><span :class="['type-pill', `${item.type}-pill`]">{{ item.typeLabel }}</span><span>{{ item.area }}</span><span class="meta-divider">·</span><span>{{ item.visualLabel }}</span></div>
+                <span v-if="item.key === entries[0]?.key" class="latest-label">最新</span>
+              </div>
+              <h3>{{ item.title }}</h3>
+              <p class="clamp-3">{{ item.what }}</p>
+              <div class="tag-list"><span v-for="tag in item.tags" :key="tag">{{ tag }}</span></div>
+              <button class="detail-action" @click="openUpdate(item)">查看详情 <el-icon><ArrowRight /></el-icon></button>
+            </div>
+          </article>
+          <div v-if="visibleUpdates.length > shownUpdates.length" class="more-row">
+            <button class="detail-action" @click="pageSize += PAGE_STEP">显示更多（还有 {{ visibleUpdates.length - shownUpdates.length }} 条） <el-icon><ArrowRight /></el-icon></button>
+          </div>
+        </div>
+        <div v-else class="empty-state panel"><span class="empty-icon"><el-icon><Search /></el-icon></span><strong>没有找到匹配的更新</strong><p>试试其他关键词或更新类型。</p><button @click="resetFilters">清除筛选</button></div>
+      </section>
+
+      <section class="subscribe-card panel">
+        <div class="subscribe-icon"><el-icon><Message /></el-icon></div>
+        <div><h3>持续关注工作台变化</h3><p>{{ summary.sub || '重要功能说明会在对应页面同步展示。' }}</p></div>
+        <span class="subscribe-state"><el-icon><CircleCheck /></el-icon> {{ progressLabel }}</span>
+      </section>
+    </template>
+
+    <el-dialog v-model="detailVisible" :title="selectedUpdate?.title || '更新详情'" width="min(640px, calc(100vw - 32px))" class="update-dialog">
       <template v-if="selectedUpdate">
-        <div class="dialog-meta"><span :class="['type-pill', `${selectedUpdate.type}-pill`]">{{ selectedUpdate.typeLabel }}</span><span>{{ selectedUpdate.date }}</span><span>·</span><span>{{ selectedUpdate.area }}</span></div>
-        <p class="dialog-summary">{{ selectedUpdate.summary }}</p>
-        <ul class="detail-list"><li v-for="detail in selectedUpdate.details" :key="detail"><el-icon><CircleCheck /></el-icon><span>{{ detail }}</span></li></ul>
-        <div class="demo-disclaimer"><el-icon><InfoFilled /></el-icon> 以上条目为本地静态演示内容，尚未连接产品更新数据。</div>
+        <div class="dialog-meta"><span :class="['type-pill', `${selectedUpdate.type}-pill`]">{{ selectedUpdate.typeLabel }}</span><span>{{ formatDate(selectedUpdate.date) }}</span><span>·</span><span>{{ selectedUpdate.area }}</span></div>
+        <div v-if="selectedUpdate.visual?.type === 'video'" class="dialog-visual"><video :src="selectedUpdate.visual.src" :poster="selectedUpdate.visual.poster" controls muted playsinline preload="metadata" /></div>
+        <div v-else-if="selectedUpdate.visual?.type === 'svg'" class="dialog-visual svg-visual" v-html="selectedUpdate.visual.html" />
+        <div v-else-if="selectedUpdate.visual?.type === 'image'" class="dialog-visual"><img :src="selectedUpdate.visual.src" :alt="selectedUpdate.visual.alt || ''" /></div>
+        <div class="dialog-summary rich" @click="onRichClick" v-html="selectedUpdate.whatHtml || selectedUpdate.what" />
+        <ul v-if="selectedUpdate.how" class="detail-list"><li><el-icon><CircleCheck /></el-icon><span><b>{{ selectedUpdate.howLabel || '怎么用' }}</b><span class="rich" @click="onRichClick" v-html="selectedUpdate.howHtml || selectedUpdate.how" /></span></li></ul>
+        <a v-if="selectedUpdate.target?.url" class="go-action" :href="selectedUpdate.target.url" target="_blank" rel="noopener noreferrer">{{ selectedUpdate.target.label || '去用一下' }} <el-icon><ArrowRight /></el-icon></a>
+        <div class="demo-disclaimer"><el-icon><InfoFilled /></el-icon> 内容来自 OSM「功能更新」（{{ selectedUpdate.target?.path || selectedUpdate.path }}），由后端定时同步，同步时间 {{ summary?.syncTime || '—' }}。</div>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
-import { ArrowRight, Bell, Calendar, Check, CircleCheck, InfoFilled, Message, Promotion, Search, Tickets } from '@element-plus/icons-vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { ArrowRight, Bell, Calendar, Check, CircleCheck, InfoFilled, Loading, Message, Promotion, Search, Tickets, VideoPlay } from '@element-plus/icons-vue'
+import { getUpdateKind, getUpdateSummary } from '@/api/option/update'
 
+const PAGE_STEP = 20
+// 按「去用一下」目标链接归类（沿用原有 功能 / 优化 / 修复 三种配色）
+const AREAS = [
+  { test: p => p.startsWith('/member/autopilot'), area: '自动驾驶', group: 'autopilot', type: 'feature', typeLabel: '自动驾驶' },
+  { test: p => /^\/member\/(earnings|premarket)/.test(p), area: '信息', group: 'info', type: 'improvement', typeLabel: '信息' },
+  { test: p => p.startsWith('/academy'), area: '学堂', group: 'info', type: 'improvement', typeLabel: '学堂' },
+  { test: p => /^\/member\/(settings|upgrade|support|wechat-group|updates)/.test(p), area: { '/member/settings': '设置', '/member/upgrade': '会员', '/member/support': '客服', '/member/wechat-group': '微信群', '/member/updates': '更新' }, group: 'account', type: 'fix', typeLabel: '账户与设置' },
+  { test: p => p.startsWith('/member/tracks'), area: '跟踪', group: 'desk', type: 'feature', typeLabel: '信号台' },
+  { test: p => p.startsWith('/member/settlement'), area: '结算', group: 'desk', type: 'feature', typeLabel: '信号台' },
+  { test: p => p.startsWith('/member/scorecard'), area: '战绩', group: 'desk', type: 'feature', typeLabel: '信号台' },
+  { test: () => true, area: '今日', group: 'desk', type: 'feature', typeLabel: '信号台' }
+]
 const filters = [
   { label: '全部', value: 'all' },
-  { label: '功能', value: 'feature' },
-  { label: '优化', value: 'improvement' },
-  { label: '修复', value: 'fix' }
+  { label: '自动驾驶', value: 'autopilot' },
+  { label: '信号台', value: 'desk' },
+  { label: '信息', value: 'info' },
+  { label: '账户与设置', value: 'account' }
 ]
+const VISUAL_LABEL = { video: '视频演示', svg: '示意图', image: '配图', none: '图文' }
+
+const loading = ref(true)
+const error = ref('')
+const summary = ref(null)
+const entries = ref([])
 const activeFilter = ref('all')
 const searchText = ref('')
+const pageSize = ref(PAGE_STEP)
 const detailVisible = ref(false)
 const selectedUpdate = ref(null)
-const updates = [
-  {
-    id: 'workspace-cards', date: '最近', type: 'feature', typeLabel: '新功能', area: '工作台', release: '界面演示',
-    title: '信号卡片信息层级调整',
-    summary: '将策略方向、到期日、风险范围与当前状态集中呈现，帮助你更快定位需要关注的信息。',
-    tags: ['信号卡', '信息展示'],
-    details: ['关键信息在卡片首屏优先显示。', '风险与状态使用清晰的语义颜色。', '卡片操作入口按当前状态展示。']
-  },
-  {
-    id: 'event-tracking', date: '近期', type: 'improvement', typeLabel: '体验优化', area: '跟踪', release: '界面演示',
-    title: '跟踪事件阅读体验优化',
-    summary: '调整事件时间线的分组和状态标识，让开仓、保护、止盈止损等进展更容易回看。',
-    tags: ['事件时间线', '状态标识'],
-    details: ['按交易生命周期组织相关事件。', '补充更明确的时间和状态提示。', '窄屏设备下改为单列展示。']
-  },
-  {
-    id: 'settlement-summary', date: '近期', type: 'feature', typeLabel: '新功能', area: '结算', release: '界面演示',
-    title: '结算记录增加结果摘要',
-    summary: '在结算记录中优先展示结果口径、结算日期与关键金额，并提供筛选和详情查看入口。',
-    tags: ['结算记录', '结果摘要'],
-    details: ['结算结果和状态分开展示。', '增加按结果类型筛选的入口。', '详情区域保留组合和管理信息。']
-  },
-  {
-    id: 'mobile-layout', date: '近期', type: 'fix', typeLabel: '问题修复', area: '移动端', release: '界面演示',
-    title: '修复窄屏导航与内容溢出',
-    summary: '优化小屏幕上的菜单入口和卡片宽度，减少表格与操作区横向溢出的情况。',
-    tags: ['响应式布局', '移动端'],
-    details: ['移动导航支持横向浏览。', '内容卡片在窄屏下切换为单列。', '修正长标题和辅助说明的换行。']
+
+const ready = computed(() => !loading.value && !!summary.value && entries.value.length > 0)
+const unseen = computed(() => summary.value?.progress?.unseen || 0)
+const syncLabel = computed(() => summary.value?.syncTime ? `OSM 同步 · ${summary.value.syncTime.slice(5, 16)}` : (loading.value ? '读取中' : '未同步'))
+const monthLine = computed(() => (summary.value?.months || []).map(m => `${Number(m.month.slice(5))} 月 ${m.count} 条`).join(' · ') || '按上线日期整理')
+const progressLabel = computed(() => {
+  const p = summary.value?.progress
+  if (!p) return '页面内查看'
+  return p.unseen > 0 ? `已读 ${p.seenSeq} / ${p.currentSeq} · ${p.unseen} 条未读` : `已读到第 ${p.currentSeq} 条`
+})
+
+function decorate(item) {
+  const path = item.target?.path || ''
+  const rule = AREAS.find(r => r.test(path))
+  const clean = path.replace(/[?#].*$/, '')
+  const area = typeof rule.area === 'string' ? rule.area : (rule.area[clean] || '账户')
+  const visualType = item.visual?.type || 'none'
+  return {
+    ...item,
+    area,
+    group: rule.group,
+    type: rule.type,
+    typeLabel: rule.typeLabel,
+    visualLabel: VISUAL_LABEL[visualType] || '图文',
+    cover: item.visual?.poster || (visualType === 'image' ? item.visual?.src : ''),
+    tags: [area, item.month ? `${Number(item.month.slice(5))} 月` : '', item.howLabel ? '含使用说明' : '', path].filter(Boolean)
   }
-]
-const featuredUpdate = updates[0]
+}
+
+const featuredUpdate = computed(() => entries.value[0] || null)
 const visibleUpdates = computed(() => {
   const query = searchText.value.trim().toLowerCase()
-  return updates.filter(item => {
-    const matchesType = activeFilter.value === 'all' || item.type === activeFilter.value
-    const matchesText = !query || [item.title, item.summary, item.area, item.tags.join(' ')].join(' ').toLowerCase().includes(query)
+  return entries.value.filter(item => {
+    const matchesType = activeFilter.value === 'all' || item.group === activeFilter.value
+    const matchesText = !query || [item.title, item.what, item.how, item.area].join(' ').toLowerCase().includes(query)
     return matchesType && matchesText
   })
 })
+const shownUpdates = computed(() => visibleUpdates.value.slice(0, pageSize.value))
+watch([activeFilter, searchText], () => { pageSize.value = PAGE_STEP })
+
+function filterCount(value) {
+  return value === 'all' ? entries.value.length : entries.value.filter(item => item.group === value).length
+}
+function selectFilter(value) {
+  activeFilter.value = value
+}
+function formatDate(value) {
+  return value ? value.replace(/-/g, '.') : '—'
+}
 function openUpdate(item) {
   selectedUpdate.value = item
   detailVisible.value = true
@@ -140,6 +195,30 @@ function resetFilters() {
   activeFilter.value = 'all'
   searchText.value = ''
 }
+// 正文中的链接（OSM 站内绝对地址）新窗口打开
+function onRichClick(event) {
+  const link = event.target?.closest?.('a')
+  if (!link || !link.href) return
+  event.preventDefault()
+  window.open(link.href, '_blank', 'noopener')
+}
+
+async function loadAll() {
+  loading.value = true
+  error.value = ''
+  try {
+    const [head, list] = await Promise.all([getUpdateSummary(), getUpdateKind('entry')])
+    summary.value = head
+    entries.value = [...(list?.items || [])].sort((a, b) => (a.order || 0) - (b.order || 0)).map(decorate)
+  } catch (e) {
+    const message = e?.message || '加载失败'
+    error.value = /暂无数据/.test(message) ? '' : message
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(loadAll)
 </script>
 
 <style scoped>
@@ -153,4 +232,19 @@ function resetFilters() {
 .subscribe-card{display:flex;align-items:center;gap:13px;padding:16px 19px;margin-top:25px;background:linear-gradient(105deg,#fff 0%,#f7faff 100%)}.subscribe-icon{width:36px;height:36px;display:grid;place-items:center;border-radius:11px;background:#edf5ff;color:#4786cd}.subscribe-card h3{margin:0 0 4px;color:#385372;font-size:12px}.subscribe-card p{margin:0;color:#8b9aaf;font-size:10px;line-height:1.6}.subscribe-state{margin-left:auto;display:flex;align-items:center;gap:5px;color:#73a58e;font-size:10px;white-space:nowrap}.subscribe-state .el-icon{font-size:13px}.dialog-meta{display:flex;align-items:center;gap:8px;color:#8b9bb0;font-size:11px}.dialog-summary{margin:17px 0;color:#526983;font-size:13px;line-height:1.8}.detail-list{display:grid;gap:11px;margin:0;padding:0;list-style:none}.detail-list li{display:flex;align-items:flex-start;gap:9px;color:#61758e;font-size:12px;line-height:1.6}.detail-list li .el-icon{margin-top:2px;color:#56a484;flex:none}.demo-disclaimer{display:flex;align-items:flex-start;gap:7px;margin-top:21px;padding:11px 12px;border-radius:9px;background:#f4f8fd;color:#8799af;font-size:10px;line-height:1.6}.demo-disclaimer .el-icon{margin-top:1px;color:#6b98c9;flex:none}
 @media(max-width:850px){.updates-toolbar{flex-wrap:wrap;gap:10px}.toolbar-label{min-width:unset;flex:1}.filter-tabs{order:3;width:100%;justify-content:flex-start;overflow:auto}.search-box{width:min(220px,45%)}.hero-art{right:3%;opacity:.65}.hero-copy{max-width:65%}.timeline-list:before{left:75px}.update-row{grid-template-columns:76px minmax(0,1fr);gap:14px}}
 @media(max-width:600px){.page-heading{align-items:flex-start}.page-heading h1{font-size:25px}.page-heading p{max-width:280px;line-height:1.6}.demo-chip{padding:6px 8px;font-size:9px}.updates-hero{min-height:196px;padding:22px 19px}.hero-copy{max-width:100%}.hero-copy h2{max-width:260px;font-size:19px;line-height:1.45}.hero-copy p{max-width:300px;font-size:11px}.hero-meta{flex-direction:column;gap:6px;margin-top:12px}.hero-art{right:-55px;opacity:.17}.updates-toolbar{padding:12px}.toolbar-label{flex-basis:100%}.search-box{margin-left:0;flex:1;width:auto;order:2}.filter-tabs{order:3}.filter-tab{padding:8px 12px}.featured-update{padding:17px 15px;gap:11px}.featured-mark{width:33px;height:33px}.featured-version{right:14px;top:16px}.featured-body{padding-right:15px}.featured-update h2{font-size:15px}.featured-update p{font-size:10px}.timeline-heading{align-items:center}.timeline-heading h2{font-size:17px}.timeline-note{font-size:9px}.timeline-list:before{left:0;top:18px;bottom:15px}.update-row{display:block;padding-left:14px;margin-bottom:12px}.date-column{position:static;padding:0;text-align:left}.date-label{padding:0 0 7px;color:#9aa7b7;font-size:9px}.timeline-marker{left:-18px;right:auto;top:3px}.update-card{padding:14px 13px}.update-meta{gap:6px;font-size:9px;flex-wrap:wrap}.update-card h3{font-size:13px}.update-card p{font-size:10px}.subscribe-card{align-items:flex-start;padding:14px}.subscribe-state{align-self:center}.subscribe-card p{max-width:210px}}
+</style>
+
+<style scoped>
+.heading-sub :deep(a){color:#3379ca;text-decoration:none;font-weight:600}.heading-sub :deep(a:hover){text-decoration:underline}
+.sync-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#55b799}.sync-dot.stale{background:#c9d3de}
+.status-panel{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;min-height:260px;padding:30px 20px;text-align:center}.status-panel .empty-icon{margin:0 0 4px}.status-panel strong{color:#3c526e;font-size:13px}.status-panel p{margin:0;color:#91a0b3;font-size:11px}.status-panel button{margin-top:6px;padding:7px 13px;border:1px solid #dce8f6;border-radius:8px;background:#f5f9ff;color:#3978be;font-size:10px;cursor:pointer}.deploy-tip{display:flex;align-items:center;gap:6px;max-width:460px;margin-top:4px;padding:8px 11px;border-radius:8px;background:#f4f8fd;color:#7d93aa;font-size:10px;line-height:1.5;text-align:left}.deploy-tip i{flex:none;width:5px;height:5px;border-radius:50%;background:#7ea8d3}.spinning{animation:up-spin 1s linear infinite}@keyframes up-spin{to{transform:rotate(360deg)}}
+.filter-tab em{margin-left:5px;font-style:normal;font-size:9px;color:#a5b3c4}.filter-tab.selected em{color:#7ea6d6}
+.clamp-3{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.featured-body{flex:1}.featured-cover{flex:none;width:200px;height:112px;margin-top:18px;border:1px solid #e4edf7;border-radius:12px;background:#f3f8ff center/cover no-repeat}
+.tag-list{flex-wrap:wrap}
+.more-row{padding:4px 0 0 114px}
+.dialog-visual{margin:16px 0 0;overflow:hidden;border:1px solid #e8eef6;border-radius:12px;background:#f7faff}.dialog-visual video,.dialog-visual img{display:block;width:100%;max-height:340px;object-fit:contain;background:#0f1c2e}.svg-visual{display:flex;justify-content:center;padding:12px}.svg-visual :deep(svg){width:100%;max-width:420px;height:auto}
+.dialog-summary :deep(a),.detail-list :deep(a){color:#3379ca}.detail-list b{margin-right:6px;color:#3d5a7a}
+.go-action{display:inline-flex;align-items:center;gap:5px;margin-top:16px;padding:8px 14px;border-radius:8px;background:#2d75cf;color:#fff;font-size:11px;font-weight:700;text-decoration:none}.go-action:hover{background:#2566b6}
+@media(max-width:850px){.featured-cover{display:none}.more-row{padding-left:90px}}
 </style>
