@@ -7,13 +7,68 @@
         <p class="intro">你在信号上做过的标记，以及系统对该信号的参考估值。</p>
 
         <section class="marked-panel">
-          <div class="panel-topline"><span class="panel-icon"><el-icon><Star /></el-icon></span><span class="panel-kicker">MY MARKS</span><span class="local-label"><i />本地页面预览</span></div>
-          <div class="empty-content">
+          <div class="panel-topline"><span class="panel-icon"><el-icon><Star /></el-icon></span><span class="panel-kicker">MY MARKS</span><span class="local-label"><i />{{ syncBadge }}</span></div>
+
+          <div v-if="!ready" class="empty-content">
+            <div class="empty-visual"><span class="orbit orbit-one"/><span class="orbit orbit-two"/><span class="empty-star"><el-icon><component :is="loading ? Loading : Star" :class="{ spinning: loading }" /></el-icon></span><i class="spark spark-one"/><i class="spark spark-two"/></div>
+            <span class="empty-tag">TRACKING SPACE</span>
+            <h2>{{ loading ? '正在加载数据' : '暂无数据' }}</h2>
+            <p>{{ loading ? '正在从本地服务读取 OSM 同步的跟踪标记…' : (error || '后端定时任务尚未同步跟踪菜单的数据，请稍后刷新。') }}</p>
+            <span v-if="!loading && !error" class="deploy-tip"><i />首次部署请由管理员在若依后台「系统监控 → 定时任务」对「OSM跟踪菜单强制同步」执行一次</span>
+            <button v-if="!loading" type="button" class="today-link" @click="loadAll">重新加载<el-icon><Refresh /></el-icon></button>
+          </div>
+
+          <div v-else-if="!allMarks.length" class="empty-content">
             <div class="empty-visual"><span class="orbit orbit-one"/><span class="orbit orbit-two"/><span class="empty-star"><el-icon><Star /></el-icon></span><i class="spark spark-one"/><i class="spark spark-two"/></div>
             <span class="empty-tag">TRACKING SPACE</span>
             <h2>尚无任何标记</h2>
-            <p>在今日信号卡片上选择“手动标记”，即可把关注的信号加入这里，并查看系统参考估值。</p>
+            <p>自动驾驶成交的信号会自动出现在这里；自己下的单在信号卡上点「手动」，也会记进来，并带上系统的参考估值。</p>
             <router-link class="today-link" to="/today">去看今日信号<el-icon><ArrowRight /></el-icon></router-link>
+          </div>
+
+          <div v-else class="marks-body">
+            <div class="mark-chips" role="tablist" aria-label="标记类型">
+              <button v-for="chip in chips" :key="chip.key" type="button" role="tab" :aria-selected="selectedMark === chip.key" :class="['mark-chip', { on: selectedMark === chip.key }]" @click="selectedMark = chip.key">{{ chip.label }}<b>{{ chip.count }}</b></button>
+            </div>
+
+            <div v-if="tally.openN > 0 || tally.closedN > 0" class="tally" title="我采用的这些标的的参考盈亏">
+              <div><small>在架 · 浮动盈亏</small><b :class="tally.open >= 0 ? 'up' : 'dn'">{{ signedUsd(tally.open) }}</b><span>{{ tally.openN }} 笔 · 按中位价推算，还会变</span></div>
+              <div><small>已结算 · 已实现</small><b :class="tally.closed >= 0 ? 'up' : 'dn'">{{ signedUsd(tally.closed) }}</b><span>{{ tally.closedN }} 笔 · 到期结果，已定</span></div>
+              <p>只统计你跟了的信号；两个数不相加——一个还会变，一个已经定死。系统参考估值，不含费用与滑点。<template v-if="tally.unknown > 0">另有 {{ tally.unknown }} 笔暂无估值。</template><template v-if="tally.archived > 0">已了结的 {{ tally.archived }} 笔仍算在上面，卡在<router-link to="/settlement">结算页</router-link>。</template></p>
+            </div>
+
+            <div class="mark-toolbar">
+              <label class="mark-search"><el-icon><Search /></el-icon><input v-model="searchText" placeholder="搜索标的" aria-label="搜索标的"></label>
+              <div class="mark-sort" role="group" aria-label="跟踪排序">
+                <button type="button" :class="{ on: sortBy === 'issued' }" @click="sortBy = 'issued'">按发报日</button>
+                <button type="button" :class="{ on: sortBy === 'expiry' }" @click="sortBy = 'expiry'">按到期日</button>
+                <small>{{ sortBy === 'issued' ? '新发的在前' : '快到期的在前' }}</small>
+              </div>
+            </div>
+
+            <div v-if="visibleMarks.length" class="mark-list">
+              <template v-for="mark in visibleMarks" :key="mark.key">
+                <header v-if="mark.dayHead" class="day-head"><b>{{ mark.dayHead }}</b><span>发报</span></header>
+                <article :class="['mark-card', { offscreen: !mark.onScreen }]">
+                  <div class="mark-card-top">
+                    <span :class="['kind-badge', mark.kindTone]">{{ mark.kindLabel }}</span>
+                    <span v-if="mark.categoryLabel" :class="['category-badge', mark.category]">{{ mark.categoryLabel }}</span>
+                    <span class="mark-expiry">{{ mark.expiryLabel }}</span>
+                  </div>
+                  <div class="mark-card-main">
+                    <div class="mark-symbol"><strong>{{ mark.symbol }}</strong><span :title="mark.title">{{ mark.title }}</span><small>{{ mark.legs }}</small></div>
+                    <div class="mark-headline"><small>{{ mark.headline.label }}</small><b :class="mark.headline.tone">{{ mark.headline.value }}</b></div>
+                  </div>
+                  <div class="mark-facts"><span v-for="fact in mark.facts" :key="fact.label"><small>{{ fact.label }}</small>{{ fact.value }}</span></div>
+                  <footer class="mark-foot">
+                    <span class="mark-tag"><em :class="['tk-mark', mark.mark.cls]">{{ mark.mark.label }}</em><time>{{ mark.markedAt }}</time><small v-if="mark.reason" class="why">{{ mark.reason }}</small></span>
+                    <span v-if="mark.note" class="mark-note">{{ mark.note }}</span>
+                  </footer>
+                </article>
+              </template>
+              <button v-if="hasMore" type="button" class="more-button" @click="limit += PAGE_SIZE">再显示 {{ Math.min(PAGE_SIZE, filteredMarks.length - limit) }} 条</button>
+            </div>
+            <div v-else class="empty-filter"><el-icon><Search /></el-icon><strong>没有匹配的标记</strong><p>调整标记类型或搜索条件后再查看。</p><button type="button" @click="resetFilters">重置筛选</button></div>
           </div>
           <div class="panel-footnote"><el-icon><InfoFilled /></el-icon><span>OSM 看不到你的券商成交，此处不是账户记录。</span></div>
         </section>
@@ -21,69 +76,182 @@
 
       <aside class="side-column">
         <section class="side-card week-card">
-          <div class="side-card-heading"><div><span class="side-kicker">THIS WEEK · 本周</span><h2>{{ weekRange }}</h2></div><span class="week-icon"><el-icon><Calendar /></el-icon></span></div>
+          <div class="side-card-heading"><div><span class="side-kicker">{{ weekClosed ? 'LAST WEEK · 上周' : 'THIS WEEK · 本周' }}</span><h2>{{ weekRange }}</h2></div><span class="week-icon"><el-icon><Calendar /></el-icon></span></div>
           <div class="weekday-grid">
             <div v-for="day in weekDays" :key="day.key" :class="['weekday', { today: day.today }]">
-              <span>{{ day.label }}</span><strong>{{ day.date }}</strong><i v-if="day.today" />
+              <span>{{ day.label }}</span><strong>{{ day.date }}</strong>
+              <em class="day-counts"><i class="dot system-dot"/>{{ day.system }}<i class="dot user-dot"/>{{ day.user }}</em>
             </div>
           </div>
           <div class="week-legend"><span><i class="dot system-dot"/>系统</span><span><i class="dot user-dot"/>你</span><span class="legend-caption">信号与标记概览</span></div>
           <div class="week-summary">
-            <div class="summary-total"><span>系统发出</span><strong>—</strong></div>
-            <div class="summary-total followed"><span>你跟了</span><strong>—</strong></div>
+            <div class="summary-total"><span>系统发出</span><strong>{{ weekStats.issued }}</strong></div>
+            <div class="summary-total followed"><span>你跟了</span><strong>{{ weekStats.followed }}</strong></div>
           </div>
           <div class="summary-breakdown">
-            <div><span class="break-icon blue"><el-icon><TrendCharts /></el-icon></span><span>新卖方</span><strong>—</strong></div>
-            <div><span class="break-icon orange"><el-icon><Umbrella /></el-icon></span><span>保护窗</span><strong>—</strong></div>
-            <div><span class="break-icon purple"><el-icon><Operation /></el-icon></span><span>管理</span><strong>—</strong></div>
-            <div><span class="break-icon red"><el-icon><Lock /></el-icon></span><span>强制保护</span><strong>—</strong></div>
-            <div><span class="break-icon green"><el-icon><CircleCheck /></el-icon></span><span>止盈</span><strong>—</strong></div>
+            <div><span class="break-icon blue"><el-icon><TrendCharts /></el-icon></span><span>新卖方</span><strong>{{ weekStats.seller }}</strong></div>
+            <div><span class="break-icon orange"><el-icon><Umbrella /></el-icon></span><span>保护窗</span><strong>{{ weekStats.protection }}</strong></div>
+            <div><span class="break-icon purple"><el-icon><Operation /></el-icon></span><span>管理</span><strong>{{ weekStats.manage }}</strong></div>
+            <div><span class="break-icon red"><el-icon><Lock /></el-icon></span><span>强制保护</span><strong>{{ weekStats.forced }}</strong></div>
+            <div><span class="break-icon green"><el-icon><CircleCheck /></el-icon></span><span>止盈</span><strong>{{ weekStats.profit }}</strong></div>
           </div>
-          <router-link class="week-action" to="/today">查看今日信号<el-icon><ArrowRight /></el-icon></router-link>
+          <router-link class="week-action" to="/today">{{ weekStats.unmarked > 0 ? `${weekClosed ? '上周' : '本周'}还有 ${weekStats.unmarked} 张卡可以标记` : '查看今日信号' }}<el-icon><ArrowRight /></el-icon></router-link>
         </section>
 
         <section class="side-card positions-card">
-          <div class="side-card-heading"><div><span class="side-kicker">POSITION WATCH</span><h2>在看的仓位</h2></div><span class="positions-total"><strong>—</strong><small>组</small></span></div>
+          <div class="side-card-heading"><div><span class="side-kicker">POSITION WATCH</span><h2>在看的仓位</h2></div><span class="positions-total"><strong>{{ ready ? positions.length : '—' }}</strong><small>组</small></span></div>
           <div class="positions-columns"><span>标的</span><span>组合与风险状态</span></div>
-          <div class="positions-empty"><span class="positions-empty-icon"><el-icon><DataAnalysis /></el-icon></span><strong>等待跟踪数据</strong><p>信号标记后的组合观察内容会显示在这里。</p></div>
+          <div v-if="positions.length" class="positions-list">
+            <div v-for="item in positions.slice(0, 8)" :key="item.key" class="position-row">
+              <span class="position-symbol">{{ item.symbol }}<small>{{ item.kindLabel }}</small></span>
+              <span class="position-state"><small>{{ item.legs }}</small><b :class="item.headline.tone">{{ item.headline.value }}</b></span>
+            </div>
+          </div>
+          <div v-else class="positions-empty"><span class="positions-empty-icon"><el-icon><DataAnalysis /></el-icon></span><strong>{{ ready ? '暂无在看的仓位' : '等待跟踪数据' }}</strong><p>信号标记“跟了”且尚未结算的组合会显示在这里。</p></div>
           <div class="positions-foot"><el-icon><InfoFilled /></el-icon>止盈、止损或移仓后的组合不在此处展示。</div>
         </section>
 
         <section class="next-events">
           <div class="next-heading"><span class="next-icon"><el-icon><Clock /></el-icon></span><div><span class="side-kicker">UP NEXT</span><strong>接下来关注</strong></div></div>
-          <div class="event-placeholder"><span class="event-day">—</span><span class="event-copy"><strong>经济数据与公司事件</strong><small>日历信息待更新</small></span><span class="event-category">宏观</span></div>
-          <div class="event-placeholder"><span class="event-day">—</span><span class="event-copy"><strong>下一项重要日程</strong><small>日历信息待更新</small></span><span class="event-category">事件</span></div>
+          <template v-if="upcoming.length">
+            <div v-for="item in upcoming" :key="item.key" class="event-placeholder"><span class="event-day">{{ item.day }}</span><span class="event-copy"><strong>{{ item.symbol }} · {{ item.legs }}</strong><small>{{ item.kindLabel }} · {{ item.mark.label }}</small></span><span class="event-category">到期</span></div>
+          </template>
+          <template v-else>
+            <div class="event-placeholder"><span class="event-day">—</span><span class="event-copy"><strong>已标记组合的到期日</strong><small>暂无即将到期的标记</small></span><span class="event-category">到期</span></div>
+          </template>
         </section>
       </aside>
     </section>
-    <p class="disclaimer"><el-icon><InfoFilled /></el-icon>演示页面未连接实时信号、券商账户或市场数据。参考估值仅用于说明界面用途，不构成交易记录或投资建议。</p>
+    <p class="disclaimer"><el-icon><InfoFilled /></el-icon>数据来自后端定时同步的 OSM 标记记录（feed + decisions + management-choices）。参考估值按中位价推算，不含费用与滑点，不构成交易记录或投资建议。</p>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import { ArrowRight, Calendar, CircleCheck, Clock, DataAnalysis, InfoFilled, Lock, Operation, Star, TrendCharts, Umbrella } from '@element-plus/icons-vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { ArrowRight, Calendar, CircleCheck, Clock, DataAnalysis, InfoFilled, Loading, Lock, Operation, Refresh, Search, Star, TrendCharts, Umbrella } from '@element-plus/icons-vue'
+import { FOLLOW_KINDS, getFollowKind, getFollowSummary } from '@/api/option/follow'
+import { getConductScope } from '@/api/option/conduct'
+import { MARK_FILTERS, issuedLabel, signedUsd, toMarks } from '@/utils/followData'
+import { etLabelDay, toTrades, weekOf } from '@/utils/conductData'
+import { etToday, shortDay } from '@/utils/todayFeed'
 
-const now = new Date()
-const monday = new Date(now)
-const dayOfWeek = (now.getDay() + 6) % 7
-monday.setDate(now.getDate() - dayOfWeek)
-const weekDays = computed(() => Array.from({ length: 5 }, (_, index) => {
-  const date = new Date(monday)
-  date.setDate(monday.getDate() + index)
-  return {
-    key: date.toISOString().slice(0, 10),
-    label: ['一', '二', '三', '四', '五'][index],
-    date: String(date.getDate()).padStart(2, '0'),
-    today: date.toDateString() === now.toDateString()
-  }
-}))
-const weekRange = computed(() => {
-  const friday = new Date(monday)
-  friday.setDate(monday.getDate() + 4)
-  const format = date => `${date.getMonth() + 1}/${date.getDate()}`
-  return `${format(monday)} — ${format(friday)}`
+const PAGE_SIZE = 30
+const WEEK_NAMES = ['一', '二', '三', '四', '五']
+
+const summary = ref(null)
+const cache = reactive({})
+const conduct = reactive({})
+const loading = ref(false)
+const error = ref('')
+const selectedMark = ref('ALL')
+const searchText = ref('')
+const sortBy = ref('issued')
+const limit = ref(PAGE_SIZE)
+
+const ready = computed(() => !!summary.value && FOLLOW_KINDS.every(kind => cache[kind]))
+const marketDay = computed(() => summary.value?.marketDay || etToday())
+const syncBadge = computed(() => {
+  if (!summary.value) return loading.value ? '正在加载' : '暂无同步数据'
+  const t = String(summary.value.syncTime || '').match(/\d{4}-(\d{2})-(\d{2})[ T](\d{2}:\d{2})/)
+  return `OSM 同步数据${t ? ` · ${t[1]}/${t[2]} ${t[3]}` : ''}`
 })
+
+const marksByKind = computed(() => Object.fromEntries(FOLLOW_KINDS.map(kind => [kind, toMarks(cache[kind])])))
+// 页面计数与 OSM 一致：卖方 + 中期 + 买方（动态管理不计入）；列表不展示已归档（结算日不是当前交易日）的标记
+const counted = computed(() => ['signal', 'midterm', 'buyer'].flatMap(kind => marksByKind.value[kind]))
+const allMarks = computed(() => FOLLOW_KINDS.flatMap(kind => marksByKind.value[kind]).filter(m => !m.archived))
+const markCounts = computed(() => {
+  const local = { ALL: 0, ADOPT_INTENT: 0, OBSERVE: 0, SKIP: 0 }
+  for (const m of counted.value) { local.ALL += 1; if (m.decisionType in local) local[m.decisionType] += 1 }
+  return summary.value?.marks || local
+})
+const chips = computed(() => MARK_FILTERS.filter(f => f.key !== 'OBSERVE' || markCounts.value.OBSERVE > 0).map(f => ({ ...f, count: markCounts.value[f.key] ?? 0 })))
+const tally = computed(() => summary.value?.tally || { open: 0, openN: 0, closed: 0, closedN: 0, unknown: 0, archived: 0 })
+
+const filteredMarks = computed(() => {
+  const q = searchText.value.trim().toLowerCase()
+  const list = allMarks.value
+    .filter(m => selectedMark.value === 'ALL' || m.decisionType === selectedMark.value)
+    .filter(m => !q || m.symbol.toLowerCase().includes(q))
+  return [...list].sort(sortBy.value === 'expiry' ? (a, b) => a.expiryAt - b.expiryAt || b.sortAt - a.sortAt : (a, b) => b.sortAt - a.sortAt)
+})
+const hasMore = computed(() => filteredMarks.value.length > limit.value)
+const visibleMarks = computed(() => {
+  let last = ''
+  return filteredMarks.value.slice(0, limit.value).map(m => {
+    let dayHead = ''
+    if (sortBy.value === 'issued' && m.issuedDay && m.issuedDay !== last) { last = m.issuedDay; dayHead = issuedLabel(m.issuedDay) }
+    return { ...m, dayHead }
+  })
+})
+
+const week = computed(() => weekOf(marketDay.value))
+// 周末 / 节后交易日落在本周五之后时，概览展示刚结束的一周（与 OSM 一致标为「上周」）
+const weekClosed = computed(() => week.value.length === 5 && marketDay.value > week.value[4])
+const weekRange = computed(() => (week.value.length ? `${shortDay(week.value[0])} — ${shortDay(week.value[4])}` : '—'))
+const signals = computed(() => (conduct.history ? toTrades('history', conduct.history) : []))
+const manageCards = computed(() => (conduct.manage ? toTrades('manage', conduct.manage) : []))
+const weekDays = computed(() => week.value.map((day, i) => ({
+  key: day,
+  label: WEEK_NAMES[i],
+  date: day.slice(8, 10),
+  today: day === marketDay.value,
+  system: conduct.history ? signals.value.filter(t => t.sentDay === day).length : '—',
+  user: ready.value ? counted.value.filter(m => m.issuedDay === day).length : '—'
+})))
+const weekStats = computed(() => {
+  const days = new Set(week.value)
+  const year = marketDay.value.slice(0, 4)
+  const inWeek = signals.value.filter(t => days.has(t.sentDay))
+  const has = !!conduct.history
+  const followedIds = new Set(counted.value.filter(m => m.decisionType === 'ADOPT_INTENT').flatMap(m => [m.raw.recommendationId, m.raw.signalId]).filter(Boolean))
+  const markedIds = new Set(counted.value.flatMap(m => [m.raw.recommendationId, m.raw.signalId]).filter(Boolean))
+  return {
+    issued: has ? inWeek.length : '—',
+    followed: ready.value ? counted.value.filter(m => m.decisionType === 'ADOPT_INTENT' && days.has(m.issuedDay)).length : '—',
+    seller: has ? inWeek.length : '—',
+    protection: has ? signals.value.filter(t => days.has(etLabelDay(t.raw.firstProtectionWindowAt, year))).length : '—',
+    manage: conduct.manage ? manageCards.value.filter(t => days.has(t.sentDay)).length : '—',
+    forced: has ? inWeek.filter(t => t.raw.protectionExecuted === true).length : '—',
+    profit: has ? inWeek.filter(t => String(t.raw.statusCode || '').startsWith('TAKE_PROFIT') || t.raw.resultKind === 'EARLY_TAKE_PROFIT').length : '—',
+    unmarked: has && ready.value ? inWeek.filter(t => ![t.raw.id, t.raw.recommendationId].some(id => markedIds.has(id) || followedIds.has(id))).length : 0
+  }
+})
+const positions = computed(() => allMarks.value.filter(m => m.decisionType === 'ADOPT_INTENT' && m.category !== 'settled' && m.onScreen).sort((a, b) => b.sortAt - a.sortAt))
+const upcoming = computed(() => allMarks.value
+  .filter(m => m.decisionType === 'ADOPT_INTENT' && m.expiry && m.expiry >= marketDay.value && m.category !== 'settled')
+  .sort((a, b) => a.expiryAt - b.expiryAt)
+  .slice(0, 3)
+  .map(m => ({ ...m, day: shortDay(m.expiry) })))
+
+watch([selectedMark, searchText, sortBy], () => { limit.value = PAGE_SIZE })
+
+function resetFilters() {
+  selectedMark.value = 'ALL'
+  searchText.value = ''
+}
+
+async function loadAll() {
+  loading.value = true
+  error.value = ''
+  try {
+    const [sum, ...lists] = await Promise.all([getFollowSummary(), ...FOLLOW_KINDS.map(kind => getFollowKind(kind))])
+    summary.value = sum
+    FOLLOW_KINDS.forEach((kind, i) => { cache[kind] = lists[i] })
+  } catch (e) {
+    const message = e?.message || '加载失败'
+    error.value = /暂无数据/.test(message) ? '' : message
+    summary.value = null
+  } finally {
+    loading.value = false
+  }
+  // 右侧「本周」系统发出数据来自「进行」菜单同步数据，失败时显示 —
+  for (const scope of ['history', 'manage']) {
+    if (!conduct[scope]) getConductScope(scope).then(data => { conduct[scope] = data }).catch(() => {})
+  }
+}
+
+onMounted(loadAll)
 </script>
 
 <style scoped>
@@ -92,4 +260,24 @@ const weekRange = computed(() => {
 @media(max-width:900px){.tracks-layout{grid-template-columns:minmax(0,1fr) 295px;gap:12px}.marked-panel{min-height:470px}.side-card{padding:12px}}
 @media(max-width:680px){.tracks-layout{grid-template-columns:1fr;gap:13px}.main-column h1{font-size:24px}.marked-panel{min-height:390px}.empty-content{min-height:280px;padding:25px 18px}.side-column{display:grid;grid-template-columns:1fr}.week-card{order:0}.positions-card{order:1}.next-events{order:2}.side-card{padding:13px}.summary-breakdown{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:390px){.marked-panel{min-height:360px}.empty-content p{font-size:9px}.week-card{padding:11px}.summary-breakdown{gap:4px}.summary-breakdown>div{grid-template-columns:17px 1fr auto;gap:3px;padding:6px 4px}.break-icon{width:17px;height:17px}.summary-breakdown>div>span:nth-child(2){font-size:7px}}
+
+.spinning{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+.deploy-tip{display:flex;align-items:center;gap:6px;max-width:420px;margin-top:12px;padding:7px 10px;border-radius:7px;background:#f4f8fc;color:#7d93aa;font-size:9px;line-height:1.5;text-align:left}.deploy-tip i{flex:none;width:5px;height:5px;border-radius:50%;background:#7ea8d3}
+button.today-link{border:0;cursor:pointer}
+.marks-body{flex:1;display:flex;flex-direction:column;gap:12px;padding:14px 16px 16px}
+.mark-chips{display:flex;flex-wrap:wrap;gap:6px}.mark-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border:1px solid #e3eaf2;border-radius:999px;background:#fff;color:#6f8399;font-size:10px;cursor:pointer;transition:all .15s}.mark-chip b{color:#9aabbd;font-size:9px;font-weight:700}.mark-chip:hover{border-color:#c9dbee;color:#3f6f9f}.mark-chip.on{border-color:#347fc4;background:#347fc4;color:#fff}.mark-chip.on b{color:#d8e8f8}
+.tally{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:11px;border:1px solid #e9eff5;border-radius:10px;background:#fbfcfe}.tally>div{display:flex;flex-direction:column;gap:3px;padding:8px 10px;border-radius:8px;background:#fff;border:1px solid #eff3f7}.tally small{color:#8fa0b2;font-size:8px;font-weight:650}.tally b{font-size:17px;letter-spacing:-.3px}.tally b.up{color:#3f9670}.tally b.dn{color:#cf6464}.tally span{color:#9aa8b7;font-size:8px}.tally p{grid-column:1/-1;margin:0;color:#97a5b4;font-size:8px;line-height:1.6}.tally p a{color:#3e7fbd}
+.mark-toolbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}.mark-search{display:flex;align-items:center;gap:6px;flex:1;min-width:150px;max-width:260px;padding:7px 10px;border:1px solid #e3eaf2;border-radius:8px;background:#fff;color:#9aabbd;font-size:11px}.mark-search input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:var(--ink);font-size:10px}.mark-search:focus-within{border-color:#9cc2e7;box-shadow:0 0 0 3px #347fc414}
+.mark-sort{display:flex;align-items:center;gap:4px;padding:3px;border-radius:8px;background:#f3f7fb}.mark-sort button{padding:5px 9px;border:0;border-radius:6px;background:transparent;color:#7d90a5;font-size:9px;cursor:pointer}.mark-sort button.on{background:#fff;color:#2f6faf;box-shadow:0 1px 4px #23446a14;font-weight:650}.mark-sort small{padding:0 6px;color:#a3b0be;font-size:8px}
+.mark-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:9px}.day-head{grid-column:1/-1;display:flex;align-items:baseline;gap:6px;margin-top:4px;padding-bottom:4px;border-bottom:1px dashed #e6edf4}.day-head b{color:#4a6888;font-size:10px}.day-head span{color:#a2b0bf;font-size:8px}
+.mark-card{display:flex;flex-direction:column;gap:9px;padding:11px 12px;border:1px solid #e7edf4;border-radius:10px;background:#fff;box-shadow:0 2px 8px #233e5b06;transition:border-color .15s,box-shadow .15s}.mark-card:hover{border-color:#cfe0f1;box-shadow:0 5px 14px #233e5b0f}.mark-card.offscreen{background:#fbfcfd;border-style:dashed}
+.mark-card-top{display:flex;align-items:center;gap:5px}.kind-badge,.category-badge{padding:3px 6px;border-radius:4px;font-size:8px;font-weight:650}.kind-badge.blue{background:#edf5ff;color:#3f7dbb}.kind-badge.purple{background:#f3efff;color:#7a64b3}.kind-badge.green{background:#edf8f2;color:#3f9670}.kind-badge.orange{background:#fff5e8;color:#bb7d33}.category-badge{background:#f3f6f9;color:#7f92a6}.category-badge.protect{background:#fff5e8;color:#bb7d33}.category-badge.profit,.category-badge.settled{background:#edf8f2;color:#3f9670}.category-badge.unknown{background:#fff0ef;color:#c46a69}.mark-expiry{margin-left:auto;color:#97a6b6;font-size:8px}
+.mark-card-main{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}.mark-symbol{display:flex;flex-direction:column;gap:2px;min-width:0}.mark-symbol strong{color:#19395f;font-size:15px;letter-spacing:-.2px}.mark-symbol span{overflow:hidden;color:#6f8399;font-size:9px;text-overflow:ellipsis;white-space:nowrap}.mark-symbol small{color:#93a3b4;font-size:8px}.mark-headline{display:flex;flex:none;flex-direction:column;align-items:flex-end;gap:2px}.mark-headline small{color:#97a6b6;font-size:8px}.mark-headline b{color:#6f8399;font-size:14px}.mark-headline b.positive{color:#3f9670}.mark-headline b.negative{color:#cf6464}
+.mark-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}.mark-facts span{display:flex;flex-direction:column;gap:2px;overflow:hidden;padding:6px 7px;border-radius:6px;background:#f7f9fc;color:#56708b;font-size:9px;text-overflow:ellipsis;white-space:nowrap}.mark-facts small{color:#a0adba;font-size:7px}
+.mark-foot{display:flex;flex-direction:column;gap:4px;padding-top:8px;border-top:1px solid #eff3f7}.mark-tag{display:flex;align-items:center;gap:6px}.tk-mark{padding:2px 7px;border-radius:999px;font-size:8px;font-style:normal;font-weight:700}.tk-mark.adopt{background:#e9f6ef;color:#3a8f68}.tk-mark.observe{background:#eef3f9;color:#6b84a0}.tk-mark.skip{background:#fff0ef;color:#c46a69}.mark-tag time{color:#97a6b6;font-size:8px}.mark-tag .why{padding:2px 5px;border-radius:4px;background:#f6f3ee;color:#a2835b;font-size:7px}.mark-note{color:#93a2b2;font-size:8px;line-height:1.5}
+.more-button{grid-column:1/-1;justify-self:center;padding:7px 14px;border:1px solid #dbe6f1;border-radius:8px;background:#fff;color:#3f78b0;font-size:9px;cursor:pointer}.more-button:hover{background:#f3f8fd}
+.empty-filter{display:flex;align-items:center;flex-direction:column;gap:5px;padding:40px 12px;color:#9aa8b7;text-align:center}.empty-filter .el-icon{font-size:18px;color:#8fb0d0}.empty-filter strong{color:#4f6984;font-size:11px}.empty-filter p{margin:0;font-size:9px}.empty-filter button{margin-top:6px;padding:6px 12px;border:1px solid #dbe6f1;border-radius:7px;background:#fff;color:#3f78b0;font-size:9px;cursor:pointer}
+.day-counts{display:flex;align-items:center;gap:2px;color:#97a6b6;font-size:7px;font-style:normal}.day-counts .dot{width:4px;height:4px;margin-left:2px}
+.positions-list{display:flex;flex-direction:column}.position-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 2px;border-bottom:1px solid #f1f4f8}.position-symbol{display:flex;flex-direction:column;gap:2px;color:#2f4f70;font-size:10px;font-weight:700}.position-symbol small{color:#9eacbb;font-size:7px;font-weight:500}.position-state{display:flex;flex-direction:column;align-items:flex-end;gap:2px;min-width:0}.position-state small{overflow:hidden;max-width:170px;color:#8e9eaf;font-size:8px;text-overflow:ellipsis;white-space:nowrap}.position-state b{color:#6f8399;font-size:10px}.position-state b.positive{color:#3f9670}.position-state b.negative{color:#cf6464}
+@media(max-width:680px){.tally{grid-template-columns:1fr}.mark-list{grid-template-columns:1fr}.mark-search{max-width:none}}
 </style>
