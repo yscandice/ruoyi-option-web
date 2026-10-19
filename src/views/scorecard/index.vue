@@ -2,148 +2,256 @@
   <div class="scorecard-page">
     <section class="page-heading">
       <div><div class="eyebrow"><span class="eyebrow-dot"/>REVIEW · PERFORMANCE</div><h1>战绩</h1><p>每日结算净额 · 管理后口径</p></div>
-      <div class="heading-meta"><span>2026/10 · 静态演示</span><el-button plain class="share-button" @click="shareSummary"><el-icon><Share /></el-icon>分享本周</el-button></div>
+      <div class="heading-meta"><span>{{ syncBadge }}</span><el-button plain class="share-button" :disabled="!ready" @click="shareSummary"><el-icon><Share /></el-icon>{{ shareLabel }}</el-button></div>
     </section>
 
-    <section class="chart-panel panel">
-      <div class="chart-panel-top"><div><span class="section-kicker">SETTLEMENT PERFORMANCE</span><h2>每日盈亏</h2><p>正式信号 · 研究口径 · 虚构演示数据</p></div><span class="demo-tag"><i/>DEMO DATA</span></div>
+    <section v-if="!ready" class="panel status-panel">
+      <span class="status-icon"><el-icon><component :is="loading ? Loading : Document" :class="{ spinning: loading }" /></el-icon></span>
+      <strong>{{ loading ? '正在读取战绩…' : '暂无数据' }}</strong>
+      <p>{{ loading ? '正在从本地服务读取 OSM 同步的战绩数据' : (error || '后端定时任务尚未同步战绩菜单的数据，请稍后刷新。') }}</p>
+      <span v-if="!loading && !error" class="deploy-tip"><i />首次部署请由管理员在若依后台「系统监控 → 定时任务」对「OSM战绩菜单强制同步」执行一次</span>
+      <button v-if="!loading" type="button" @click="loadAll">重新加载</button>
+    </section>
+
+    <template v-else>
+    <section class="chart-panel panel" :class="{ 'is-loading': loading }">
+      <div class="chart-panel-top"><div><span class="section-kicker">SETTLEMENT PERFORMANCE</span><h2>每日盈亏</h2><p>正式信号 · 管理后口径 · 按结算日（ET）归集</p></div><span class="demo-tag"><i/>OSM · {{ marketDayLabel }}</span></div>
       <div class="control-rows">
-        <div class="control-row"><span class="control-label">口径</span><div class="segmented"><button :class="{active:scope==='all'}" @click="scope='all'">全部演示信号</button><button :class="{active:scope==='followed'}" @click="scope='followed'">我跟了的</button></div><span class="control-hint">每条信号按独立组合计算</span></div>
-        <div class="control-row"><span class="control-label">粒度</span><div class="segmented compact"><button v-for="item in granularities" :key="item" :class="{active:granularity===item}" @click="granularity=item">{{ item }}</button></div><span class="control-label chart-type-label">图型</span><div class="segmented compact"><button v-for="item in chartTypes" :key="item.key" :class="{active:chartType===item.key}" @click="chartType=item.key">{{ item.label }}</button></div><span class="control-label range-label">区间</span><div class="segmented compact"><button :class="{active:range==='month'}" @click="range='month'">本月</button><button :class="{active:range==='all'}" @click="range='all'">全部</button></div><el-switch v-model="showFloating" class="floating-switch" /><span class="floating-switch-label">当日浮动盈亏（未结算）</span></div>
+        <div class="control-row"><span class="control-label">口径</span><div class="segmented"><button :class="{active:scope==='all'}" @click="scope='all'">全部正式信号</button><button :class="{active:scope==='adopted'}" @click="scope='adopted'">我跟了的</button></div><span class="control-hint">{{ scope==='adopted' ? '按我跟了的组数放大金额' : '每条信号按独立组合计算' }}</span></div>
+        <div class="control-row"><span class="control-label">粒度</span><div class="segmented compact"><button v-for="item in granularities" :key="item.key" :class="{active:granularity===item.key}" @click="granularity=item.key">{{ item.label }}</button></div><span class="control-label chart-type-label">图型</span><div class="segmented compact"><button v-for="item in chartTypes" :key="item.key" :class="{active:chartType===item.key}" @click="chartType=item.key">{{ item.label }}</button></div><span class="control-label range-label">区间</span><div class="segmented compact"><button :class="{active:range==='month'}" @click="range='month'">本月</button><button :class="{active:range==='all'}" @click="range='all'">全部</button></div><el-switch v-model="showFloating" class="floating-switch" :disabled="granularity!=='day'" /><span class="floating-switch-label">当日浮动盈亏（未结算）</span></div>
       </div>
 
-      <div class="chart-legend"><span><i class="legend-settled"/>结算净额</span><span v-if="showFloating"><i class="legend-floating"/>未结算浮动</span><small>美元 · ET 交易日</small></div>
+      <div class="chart-legend"><span><i class="legend-settled"/>{{ chartType==='cumulative' ? '累计结算净额' : '结算净额' }}</span><span v-if="floatingOn"><i class="legend-floating"/>未结算浮动</span><small>美元 · ET 交易日</small></div>
       <div class="performance-chart">
-        <div class="chart-axis"><span>+$1,000</span><span>+$500</span><span>$0</span><span>−$500</span><span>−$1,000</span></div>
+        <div class="chart-axis"><span v-for="label in axisLabels" :key="label">{{ label }}</span></div>
         <div class="chart-plot" :class="`mode-${chartType}`">
           <div v-for="line in 5" :key="line" class="grid-line" :class="{zero:line===3}"/>
-          <svg v-if="chartType!=='bar'" class="line-chart" viewBox="0 0 900 210" preserveAspectRatio="none" aria-label="每日盈亏趋势">
+          <svg v-if="chartType!=='bar' && hasChartData" class="line-chart" viewBox="0 0 900 210" preserveAspectRatio="none" aria-label="每日盈亏趋势">
             <defs><linearGradient id="settledArea" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="#4b8bc9" stop-opacity=".18"/><stop offset="100%" stop-color="#4b8bc9" stop-opacity="0"/></linearGradient></defs>
             <path v-if="trendPoints.length" :d="trendArea" fill="url(#settledArea)"/><polyline v-if="trendPoints.length" :points="trendPolyline" fill="none" stroke="#4d8bc5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-            <polyline v-if="showFloating && floatingPoints.length" :points="floatingPolyline" fill="none" stroke="#e7a54d" stroke-width="2" stroke-dasharray="5 5" stroke-linecap="round" stroke-linejoin="round"/>
+            <polyline v-if="floatingOn && floatingPoints.length" :points="floatingPolyline" fill="none" stroke="#e7a54d" stroke-width="2" stroke-dasharray="5 5" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
-          <div v-else class="bar-groups"><div v-for="(day,index) in visibleDays" :key="day.date" class="bar-group"><div class="bars"><i v-if="day.settled" class="settled-bar" :class="{loss:day.settled<0}" :style="barStyle(day.settled)"/><i v-if="showFloating && day.floating!==null" class="floating-bar" :class="{loss:day.floating<0}" :style="barStyle(day.floating)"/></div><span>{{ chartLabels[index] }}</span></div></div>
-          <div v-if="chartType!=='bar'" class="line-labels"><span v-for="(day,index) in visibleDays" :key="day.date">{{ chartLabels[index] }}</span></div>
-          <div class="zero-axis"/><div v-if="!visibleDays.length" class="chart-empty">当前区间暂无演示数据</div>
+          <div v-else class="bar-groups"><div v-for="(item,index) in chartData" :key="item.key" class="bar-group" :title="barTitle(item)"><div class="bars"><i v-if="item.settled!==null" class="settled-bar" :class="{loss:item.settled<0}" :style="barStyle(item.settled)"/><i v-if="floatingOn && item.floating!==null" class="floating-bar" :class="{loss:item.floating<0}" :style="barStyle(item.floating)"/></div><span v-if="showLabel(index)">{{ item.label }}</span></div></div>
+          <div v-if="chartType!=='bar'" class="line-labels"><span v-for="(item,index) in chartData" :key="item.key">{{ showLabel(index) ? item.label : '' }}</span></div>
+          <div class="zero-axis"/><div v-if="!hasChartData" class="chart-empty">{{ scope==='adopted' ? '当前区间还没有我跟了的结算记录' : '当前区间暂无结算数据' }}</div>
         </div>
       </div>
-      <div class="chart-footnote">实心图形表示已结算净额；橙色虚线 / 半透明柱表示未结算生命周期的估算浮动盈亏，不计入结算合计。</div>
+      <div class="chart-footnote">实心图形表示已结算净额（管理后）；橙色虚线 / 半透明柱表示未结算生命周期的当日收盘浮动盈亏（仅「日」粒度），不计入结算合计。今日 {{ marketDayLabel }} 为盘中估算。</div>
     </section>
 
     <section class="summary-strip panel">
       <div class="summary-total"><span>{{ range==='month'?'本月':'全部区间' }}结算合计 <small>· 按结算日</small></span><strong :class="tone(settledTotal)">{{ money(settledTotal) }}</strong></div>
       <div class="summary-cell"><span>最大单日盈利</span><strong class="positive">{{ money(maxGain) }}</strong></div>
-      <div class="summary-cell"><span>最大单日亏损</span><strong class="negative">{{ maxLoss===null?'—':money(maxLoss) }}</strong></div>
-      <div class="summary-cell"><span>结算交易日 / 覆盖日</span><strong>{{ settledDays }} <small>/ {{ visibleDays.length }}</small></strong></div>
-      <div class="summary-cell"><span>已结算 / 独立样本</span><strong>{{ filteredRecords.length }} <small>/ {{ uniqueSamples }}</small></strong></div>
+      <div class="summary-cell"><span>最大单日亏损</span><strong class="negative">{{ money(maxLoss) }}</strong></div>
+      <div class="summary-cell"><span>结算交易日 / 覆盖日</span><strong>{{ settledDays }} <small>/ {{ dayRows.length }}</small></strong></div>
+      <div class="summary-cell"><span>已结算 / 独立样本</span><strong>{{ stats.priced.length }} <small>/ {{ stats.units }}</small></strong></div>
       <div class="summary-cell"><span>最亏 5 日占亏损</span><strong>{{ worstLossShare }}<small v-if="worstLossShare!=='—'">%</small></strong></div>
     </section>
 
     <section class="management-panel panel">
-      <div class="section-heading"><div><span class="section-kicker">COUNTERFACTUAL REVIEW</span><h2>逆风处置对照 <small>· 被测样本</small></h2><p>只统计发生过管理动作或保护成本的已结算演示样本</p></div><el-tag effect="plain" type="warning">研究口径</el-tag></div>
+      <div class="section-heading"><div><span class="section-kicker">COUNTERFACTUAL REVIEW</span><h2>逆风处置对照 <small>· 被测样本</small></h2><p>只统计发生过管理动作或保护成本的已结算样本（管理后净结果 ≠ 原价差，或有保护成本）</p></div><el-tag effect="plain" type="warning">研究口径</el-tag></div>
       <div class="management-summary">
         <div><span>逆风样本</span><strong>{{ managedRecords.length }} 笔</strong></div><div><span>管理后净结果</span><strong :class="tone(managedNet)">{{ money(managedNet) }}</strong></div><div><span>若不管理（原价差）</span><strong :class="tone(baselineNet)">{{ money(baselineNet) }}</strong></div><div class="delta-cell"><span>管理差额</span><strong :class="tone(managedNet-baselineNet)">{{ money(managedNet-baselineNet) }}</strong></div>
       </div>
-      <div class="rescued-heading"><span>管理差额较大的演示样本</span><small>管理后净结果 − 原价差对照</small></div>
-      <div class="rescued-list"><article v-for="record in rescuedRecords" :key="record.id" class="rescued-item"><span class="rescued-symbol">{{ record.symbol }}</span><span class="rescued-detail">{{ record.legs }} · {{ record.closeDate }}</span><span :class="tone(record.pnl)">{{ money(record.pnl) }}</span><el-icon><Right /></el-icon><span :class="tone(record.baseline)">{{ money(record.baseline) }}</span><strong :class="tone(record.pnl-record.baseline)">{{ money(record.pnl-record.baseline) }}</strong></article></div>
-      <p class="management-note"><el-icon><InfoFilled /></el-icon>对照结果是同一笔交易的静态估算，不代表真实可实现收益。</p>
+      <div class="rescued-heading"><span>管理差额较大的样本</span><small>管理后净结果 − 原价差对照</small></div>
+      <div v-if="rescuedRecords.length" class="rescued-list"><article v-for="record in rescuedRecords" :key="record.id" class="rescued-item"><span class="rescued-symbol">{{ record.symbol }}</span><span class="rescued-detail">{{ record.legs }} · {{ record.closeDate }}</span><span :class="tone(record.pnl)">{{ money(record.pnl) }}</span><el-icon><Right /></el-icon><span :class="tone(record.baseline)">{{ money(record.baseline) }}</span><strong :class="tone(record.pnl-record.baseline)">{{ money(record.pnl-record.baseline) }}</strong></article></div>
+      <div v-else class="rescued-empty">当前区间没有发生管理动作的已结算样本</div>
+      <p class="management-note"><el-icon><InfoFilled /></el-icon>原价差对照 = 不做任何管理、持有到期的结果；对照只用于复盘，不代表真实可实现收益。</p>
     </section>
 
     <section class="monthly-grid">
-      <article class="panel monthly-panel"><div class="section-heading"><div><span class="section-kicker">SIGNAL COHORT</span><h2>本月开出的信号</h2><p>按开仓日归集 · 与上方图表按结算日口径不同</p></div><el-icon class="heading-icon"><Calendar /></el-icon></div>
-        <div class="cohort-total"><span>本月开仓 · 管理后</span><strong :class="tone(cohortNet)">{{ money(cohortNet) }}</strong><small>已结算 + 在途浮动</small></div>
-        <div class="cohort-metrics"><div><span>原价差对照</span><strong>{{ money(cohortBaseline) }}</strong><small>不含管理动作</small></div><div><span>已结算</span><strong>{{ money(cohortSettled) }}</strong><small>{{ settledDays }} 个结算日</small></div><div><span>胜率 · 管理后</span><strong>{{ cohortWinRate }}%</strong><small>{{ counts.profit }} 胜 / {{ counts.loss }} 负</small></div><div><span>入场权利金</span><strong>$1,860</strong><small>虚构样例</small></div></div>
-        <div class="cohort-bars"><div v-for="metric in [{label:'盈利',value:counts.profit,color:'green'},{label:'亏损',value:counts.loss,color:'red'},{label:'持平',value:counts.flat,color:'gray'}]" :key="metric.label"><span>{{ metric.label }}</span><div><i :class="metric.color" :style="{width:`${periodRecords.length?metric.value/periodRecords.length*100:0}%`}"/></div><strong>{{ metric.value }}</strong></div></div>
+      <article class="panel monthly-panel"><div class="section-heading"><div><span class="section-kicker">SIGNAL COHORT · {{ monthLabel }}</span><h2>本月开出的信号</h2><p>按开仓日归集 · 与上方图表按结算日口径不同 · 全部正式信号</p></div><el-icon class="heading-icon"><Calendar /></el-icon></div>
+        <div class="cohort-total"><span>本月开仓 · 管理后</span><strong :class="tone(cohort.managedPnlUsd)">{{ money(cohort.managedPnlUsd) }}</strong><small>已结算 + 在途浮动</small></div>
+        <div class="cohort-metrics"><div><span>原价差对照</span><strong>{{ money(cohort.rawPnlUsd) }}</strong><small>不含管理动作</small></div><div><span>已结算</span><strong :class="tone(cohort.settledPnlUsd)">{{ money(cohort.settledPnlUsd) }}</strong><small>{{ cohort.settledPriced ?? 0 }} 笔已结算</small></div><div><span>胜率 · 管理后</span><strong>{{ cohort.winRate ?? '—' }}<template v-if="cohort.winRate!==null && cohort.winRate!==undefined">%</template></strong><small>{{ cohortCounts.profit }} 胜 / {{ cohortCounts.loss }} 负</small></div><div><span>入场权利金</span><strong>{{ plainUsd(cohort.premiumUsd) }}</strong><small>{{ cohort.total ?? 0 }} 条信号</small></div></div>
+        <div class="cohort-bars"><div v-for="metric in cohortBars" :key="metric.label"><span>{{ metric.label }}</span><div><i :class="metric.color" :style="{width:`${cohortCounts.total?metric.value/cohortCounts.total*100:0}%`}"/></div><strong>{{ metric.value }}</strong></div></div>
       </article>
-      <article class="panel symbols-panel"><div class="section-heading"><div><span class="section-kicker">RESULT BY SYMBOL</span><h2>按标的 · 管理后净结果</h2><p>演示样例 · 已结算与在途浮动分开呈现</p></div><el-icon class="heading-icon"><DataAnalysis /></el-icon></div>
-        <div class="symbol-list"><div v-for="item in symbolSummary" :key="item.symbol" class="symbol-row"><span class="symbol-badge">{{ item.symbol }}</span><div class="symbol-progress"><div class="symbol-values"><small>已结算 {{ money(item.settled) }} · 在途 {{ money(item.floating) }}</small><strong :class="tone(item.settled+item.floating)">{{ money(item.settled+item.floating) }}</strong></div><div class="progress-track"><i :class="tone(item.settled+item.floating)" :style="{width:`${Math.max(8,Math.min(100,Math.abs(item.settled+item.floating)/15))}%`}"/></div></div><span class="symbol-groups">{{ item.groups }} 组</span></div></div>
+      <article class="panel symbols-panel"><div class="section-heading"><div><span class="section-kicker">RESULT BY SYMBOL</span><h2>按标的 · 管理后净结果</h2><p>{{ range==='month'?'本月':'全部区间' }} · 已结算与在途浮动分开呈现 · 共 {{ symbolRows.length }} 个标的</p></div><el-icon class="heading-icon"><DataAnalysis /></el-icon></div>
+        <div v-if="symbolSummary.length" class="symbol-list"><div v-for="item in symbolSummary" :key="item.symbol" class="symbol-row"><span class="symbol-badge">{{ item.symbol }}</span><div class="symbol-progress"><div class="symbol-values"><small>已结算 {{ money(item.settled) }} · 在途 {{ money(item.floating) }}</small><strong :class="tone(item.total)">{{ money(item.total) }}</strong></div><div class="progress-track"><i :class="tone(item.total)" :style="{width:`${symbolWidth(item.total)}%`}"/></div></div><span class="symbol-groups">{{ item.groups }} 组</span></div></div>
+        <div v-else class="rescued-empty">当前区间暂无按标的数据</div>
       </article>
     </section>
 
     <section class="quality-grid">
-      <article class="panel winloss-panel"><div class="section-heading"><div><span class="section-kicker">PROFITABLE / LOSSES</span><h2>胜负分布</h2></div></div><div class="winloss-content"><div class="winloss-donut" :style="winLossStyle"><strong>{{ periodRecords.length }}</strong><small>笔演示交易</small></div><div class="winloss-legend"><div><span><i class="win-dot"/>盈利</span><strong>{{ counts.profit }} <small>{{ percent(counts.profit) }}%</small></strong></div><div><span><i class="loss-dot"/>亏损</span><strong>{{ counts.loss }} <small>{{ percent(counts.loss) }}%</small></strong></div><div><span><i class="flat-dot"/>持平</span><strong>{{ counts.flat }} <small>{{ percent(counts.flat) }}%</small></strong></div></div></div></article>
-      <article class="panel range-panel"><div class="section-heading"><div><span class="section-kicker">PAYOUT RANGE</span><h2>单笔幅度范围</h2><p>已结算净盈亏 · 虚构演示值</p></div></div><div class="range-values"><div><span>最大亏损</span><strong class="negative">{{ money(pnlRange.min) }}</strong></div><div><span>平均亏损</span><strong class="negative">{{ money(pnlRange.avgLoss) }}</strong></div><div><span>平均盈利</span><strong class="positive">{{ money(pnlRange.avgWin) }}</strong></div><div><span>最大盈利</span><strong class="positive">{{ money(pnlRange.max) }}</strong></div></div><div class="range-visual"><i class="range-track"/><i class="range-marker loss-marker"/><i class="range-marker avg-loss-marker"/><i class="range-marker avg-win-marker"/><i class="range-marker win-marker"/></div><small class="range-caption">极值与均值仅描述这组静态样例，不构成收益预测。</small></article>
+      <article class="panel winloss-panel"><div class="section-heading"><div><span class="section-kicker">PROFITABLE / LOSSES</span><h2>胜负分布</h2></div></div><div class="winloss-content"><div class="winloss-donut" :style="winLossStyle"><strong>{{ stats.priced.length }}</strong><small>笔已结算</small></div><div class="winloss-legend"><div><span><i class="win-dot"/>盈利</span><strong>{{ stats.profit }} <small>{{ percent(stats.profit) }}%</small></strong></div><div><span><i class="loss-dot"/>亏损</span><strong>{{ stats.loss }} <small>{{ percent(stats.loss) }}%</small></strong></div><div><span><i class="flat-dot"/>持平</span><strong>{{ stats.flat }} <small>{{ percent(stats.flat) }}%</small></strong></div></div></div></article>
+      <article class="panel range-panel"><div class="section-heading"><div><span class="section-kicker">PAYOUT RANGE</span><h2>单笔幅度范围</h2><p>已结算净盈亏 · 管理后口径</p></div></div><div class="range-values"><div><span>最大亏损</span><strong class="negative">{{ money(stats.min) }}</strong></div><div><span>平均亏损</span><strong class="negative">{{ money(stats.avgLoss) }}</strong></div><div><span>平均盈利</span><strong class="positive">{{ money(stats.avgWin) }}</strong></div><div><span>最大盈利</span><strong class="positive">{{ money(stats.max) }}</strong></div></div><div class="range-visual"><i class="range-track"/><i class="range-marker loss-marker"/><i class="range-marker avg-loss-marker"/><i class="range-marker avg-win-marker"/><i class="range-marker win-marker"/></div><small class="range-caption">极值与均值只描述当前区间的已结算样本，不构成收益预测。</small></article>
     </section>
 
     <section class="panel records-panel">
-      <div class="records-heading"><div><span class="section-kicker">SETTLED RECORDS · {{ period==='all'?'ALL':'2026/10' }}</span><h2>已结算记录</h2><p>管理后净结果缺失的示例记录标记为“待复核”</p></div><el-button plain class="export-button" :disabled="!visibleRecords.length" @click="exportCsv"><el-icon><Download /></el-icon>导出 CSV</el-button></div>
+      <div class="records-heading"><div><span class="section-kicker">SETTLED RECORDS · {{ range==='all'?'ALL':monthLabel }}</span><h2>已结算记录</h2><p>管理后净结果缺失的记录标记为“待复核”；不计入战绩的记录单独标注</p></div><el-button plain class="export-button" :disabled="!visibleRecords.length" @click="exportCsv"><el-icon><Download /></el-icon>导出 CSV</el-button></div>
       <div class="records-toolbar"><div class="record-filters"><button v-for="filter in filters" :key="filter.key" :class="{active:selectedFilter===filter.key}" @click="selectedFilter=filter.key">{{ filter.label }} <small>{{ filter.count }}</small></button></div><el-input v-model="searchText" class="search-input" placeholder="搜索标的或结构" clearable><template #prefix><el-icon><Search /></el-icon></template></el-input></div>
-      <div class="table-wrap"><table class="record-table"><thead><tr><th>标的 / 结构</th><th>到期</th><th>入场权利金</th><th>最大风险</th><th>持有日</th><th>保护成本</th><th>结果口径</th><th>管理后净结果</th><th>原价差对照</th></tr></thead><tbody v-if="visibleRecords.length"><tr v-for="record in visibleRecords" :key="record.id"><td><div class="record-symbol"><b>{{ record.symbol }}</b><span>{{ record.legs }}</span></div></td><td>{{ record.expiry }}</td><td>{{ money(record.credit) }}</td><td>{{ money(record.risk) }}</td><td>{{ record.days }}</td><td>{{ money(record.protection) }}</td><td><span class="basis-pill">{{ record.basis }}</span></td><td :class="tone(record.pnl)">{{ money(record.pnl) }}</td><td :class="tone(record.baseline)">{{ money(record.baseline) }}</td></tr></tbody><tbody v-else><tr><td colspan="9"><div class="table-empty"><el-icon><Document /></el-icon><strong>没有匹配的结算记录</strong><span>切换筛选条件或清空搜索词试试。</span><el-button link type="primary" @click="resetFilters">重置筛选</el-button></div></td></tr></tbody></table></div>
-      <div class="records-footer"><span>{{ visibleRecords.length }} / {{ filteredRecords.length }} 条静态演示记录</span><span>字段：标的、结构、到期、权利金、风险、持有日、保护成本、结算口径与对照结果</span></div>
+      <div class="table-wrap"><table class="record-table"><thead><tr><th>标的 / 结构</th><th>到期</th><th>入场权利金</th><th>最大风险</th><th>持有日</th><th>保护成本</th><th>结果口径</th><th>管理后净结果</th><th>原价差对照</th></tr></thead><tbody v-if="pageRecords.length"><tr v-for="record in pageRecords" :key="record.id"><td><div class="record-symbol"><b>{{ record.symbol }}<em v-if="record.lots" class="lots-tag">跟 {{ record.lots }} 组</em></b><span>{{ record.legs }}</span></div></td><td>{{ record.expiry }}</td><td>{{ plainUsd(record.credit) }}</td><td>{{ plainUsd(record.risk) }}</td><td>{{ record.days ?? '—' }}</td><td>{{ record.protection ? plainUsd(record.protection) : '$0' }}</td><td><span class="basis-pill">{{ record.basis }}</span><span v-if="record.excluded" class="basis-pill excluded-pill" :title="record.exclusionReason">不计入</span></td><td :class="tone(record.pnl)"><span v-if="record.pending" class="basis-pill pending-pill">待复核</span><template v-else>{{ money(record.pnl) }}</template></td><td :class="tone(record.baseline)">{{ money(record.baseline) }}</td></tr></tbody><tbody v-else><tr><td colspan="9"><div class="table-empty"><el-icon><Document /></el-icon><strong>{{ allRecords.length ? '没有匹配的结算记录' : (scope==='adopted' ? '还没有我跟了的已结算记录' : '当前区间还没有已结算记录') }}</strong><span>{{ allRecords.length ? '切换筛选条件或清空搜索词试试。' : '在 OSM 记录跟单后，结算的记录会出现在这里。' }}</span><el-button v-if="allRecords.length" link type="primary" @click="resetFilters">重置筛选</el-button></div></td></tr></tbody></table></div>
+      <div class="records-footer"><span>{{ pageRecords.length }} / {{ visibleRecords.length }} 条记录<el-button v-if="pageRecords.length<visibleRecords.length" link type="primary" class="more-button" @click="pageSize+=PAGE">显示更多</el-button></span><span>数据来自 OSM 同步 · 批次 {{ summary?.syncId ?? '—' }} · 结算日倒序</span></div>
     </section>
-    <section class="disclaimer"><el-icon><Warning /></el-icon><span>页面中的标的名称、交易数据与金额均为静态虚构示例，不代表真实账户或真实交易表现。历史表现不代表未来结果。</span></section>
+    </template>
+    <section class="disclaimer"><el-icon><Warning /></el-icon><span>战绩为 OSM 正式信号按发报中间价记账、按管理规则了结的研究口径结果，不是任何会员的真实成交。历史表现不代表未来结果。</span></section>
   </div>
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
-import { Calendar, DataAnalysis, Document, Download, InfoFilled, Right, Search, Share, Warning } from '@element-plus/icons-vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { Calendar, DataAnalysis, Document, Download, InfoFilled, Loading, Right, Search, Share, Warning } from '@element-plus/icons-vue'
+import { getRecordKind, getRecordSummary } from '@/api/option/record'
+import { axisUsd, money, niceMax, num, plainUsd, summarize, toBuckets, toRecord, tone } from '@/utils/recordData'
 
+const PAGE = 20
 const scope = ref('all')
-const granularity = ref('日')
+const granularity = ref('day')
 const chartType = ref('bar')
 const range = ref('month')
 const showFloating = ref(true)
 const selectedFilter = ref('all')
 const searchText = ref('')
-const granularities = ['日', '周', '月']
+const pageSize = ref(PAGE)
+const granularities = [{ key: 'day', label: '日' }, { key: 'week', label: '周' }, { key: 'month', label: '月' }]
 const chartTypes = [{ key: 'bar', label: '柱状' }, { key: 'line', label: '折线' }, { key: 'cumulative', label: '累计' }]
 
-const daily = [
-  { date:'10/01',settled:null,floating:184,groups:7 },{ date:'10/02',settled:238,floating:96,groups:6 },{ date:'10/05',settled:null,floating:201,groups:8 },{ date:'10/06',settled:null,floating:-145,groups:8 },
-  { date:'10/07',settled:74,floating:-82,groups:9 },{ date:'10/08',settled:null,floating:315,groups:10 },{ date:'10/09',settled:192,floating:221,groups:11 },{ date:'10/12',settled:136,floating:144,groups:9 },
-  { date:'10/13',settled:86,floating:268,groups:10 },{ date:'10/14',settled:53,floating:-310,groups:11 },{ date:'10/15',settled:112,floating:81,groups:8 },{ date:'10/16',settled:null,floating:-126,groups:7 }
-]
-const records = [
-  {id:1,symbol:'DEMO-A',legs:'卖 100C / 买 105C',expiry:'10/14',credit:128,risk:372,days:5,protection:0,basis:'到期结算',pnl:112,baseline:128,followed:true,closeDate:'10/14'},
-  {id:2,symbol:'SAMPLE-B',legs:'卖 85P / 买 80P',expiry:'10/14',credit:164,risk:336,days:4,protection:18,basis:'执行平仓 · 止损',pnl:-96,baseline:-214,followed:false,closeDate:'10/14'},
-  {id:3,symbol:'MOCK-C',legs:'卖 210C / 买 215C',expiry:'10/09',credit:205,risk:295,days:3,protection:0,basis:'到期结算',pnl:192,baseline:205,followed:true,closeDate:'10/09'},
-  {id:4,symbol:'DEMO-D',legs:'卖 55P / 买 50P',expiry:'10/09',credit:118,risk:382,days:4,protection:12,basis:'执行平仓 · 止盈',pnl:86,baseline:-142,followed:false,closeDate:'10/09'},
-  {id:5,symbol:'SAMPLE-E',legs:'卖 125C / 买 130C',expiry:'10/07',credit:143,risk:357,days:2,protection:0,basis:'到期结算',pnl:74,baseline:143,followed:true,closeDate:'10/07'},
-  {id:6,symbol:'MOCK-F',legs:'卖 72P / 买 67P',expiry:'10/02',credit:176,risk:324,days:5,protection:0,basis:'到期结算',pnl:238,baseline:176,followed:false,closeDate:'10/02'},
-  {id:7,symbol:'DEMO-G',legs:'卖 150C / 买 155C',expiry:'09/25',credit:152,risk:348,days:3,protection:0,basis:'到期结算',pnl:-118,baseline:-118,followed:true,closeDate:'09/25'},
-  {id:8,symbol:'SAMPLE-H',legs:'卖 95P / 买 90P',expiry:'09/18',credit:131,risk:369,days:4,protection:9,basis:'执行平仓 · 止盈',pnl:105,baseline:-188,followed:false,closeDate:'09/18'}
-]
-const visibleDays = computed(() => range.value === 'all' ? [{date:'09/29',settled:-84,floating:-34,groups:5},{date:'09/30',settled:126,floating:72,groups:6},...daily] : daily)
-const filteredRecords = computed(() => records.filter(record => scope.value === 'all' || record.followed))
-const periodRecords = computed(() => range.value === 'all' ? filteredRecords.value : filteredRecords.value.filter(record => record.closeDate.startsWith('10/')))
-const counts = computed(() => ({profit:periodRecords.value.filter(record=>record.pnl>0).length,loss:periodRecords.value.filter(record=>record.pnl<0).length,flat:periodRecords.value.filter(record=>record.pnl===0).length}))
-const filters = computed(() => [{key:'all',label:'全部记录',count:filteredRecords.value.length},{key:'profit',label:'盈利',count:filteredRecords.value.filter(r=>r.pnl>0).length},{key:'loss',label:'亏损',count:filteredRecords.value.filter(r=>r.pnl<0).length}])
-const visibleRecords = computed(() => { const query=searchText.value.trim().toLowerCase(); return filteredRecords.value.filter(r => (selectedFilter.value==='all'||(selectedFilter.value==='profit'?r.pnl>0:r.pnl<0)) && (!query||`${r.symbol} ${r.legs}`.toLowerCase().includes(query))) })
-const settledTotal = computed(() => visibleDays.value.reduce((sum,day)=>sum+(day.settled||0),0))
-const maxGain = computed(() => Math.max(0,...visibleDays.value.map(day=>day.settled||0)))
-const maxLoss = computed(() => {const losses=visibleDays.value.map(day=>day.settled).filter(value=>value!==null&&value<0);return losses.length?Math.min(...losses):null})
-const settledDays = computed(() => visibleDays.value.filter(day=>day.settled!==null).length)
-const uniqueSamples = computed(() => new Set(periodRecords.value.map(record=>record.symbol)).size)
-const worstLossShare = computed(() => { const losses=visibleDays.value.map(day=>day.settled||0).filter(value=>value<0).sort((a,b)=>a-b); if(!losses.length)return '—'; const total=Math.abs(losses.reduce((sum,value)=>sum+value,0));return Math.round(Math.abs(losses.slice(0,5).reduce((sum,value)=>sum+value,0))/total*100) })
-const managedRecords = computed(() => periodRecords.value.filter(record=>record.protection>0 || record.pnl!==record.baseline))
-const managedNet = computed(() => managedRecords.value.reduce((sum,record)=>sum+record.pnl,0))
-const baselineNet = computed(() => managedRecords.value.reduce((sum,record)=>sum+record.baseline,0))
-const rescuedRecords = computed(() => [...managedRecords.value].sort((a,b)=>(b.pnl-b.baseline)-(a.pnl-a.baseline)).slice(0,3))
-const cohortSettled = computed(() => periodRecords.value.reduce((sum,record)=>sum+record.pnl,0))
-const cohortBaseline = computed(() => periodRecords.value.reduce((sum,record)=>sum+record.baseline,0))
-const cohortNet = computed(() => cohortSettled.value + visibleDays.value.filter(day=>day.settled===null).reduce((sum,day)=>sum+(day.floating||0),0))
-const cohortWinRate = computed(() => periodRecords.value.length?Math.round(counts.value.profit/periodRecords.value.length*100):0)
-const symbolSummary = computed(() => { const bySymbol=new Map();periodRecords.value.forEach(record=>{const current=bySymbol.get(record.symbol)||{symbol:record.symbol,settled:0,floating:0,groups:0};current.settled+=record.pnl;current.groups++;bySymbol.set(record.symbol,current)});return [...bySymbol.values()].sort((a,b)=>b.settled-a.settled).slice(0,6) })
-const winLossStyle = computed(() => {const n=periodRecords.value.length||1;const win=counts.value.profit/n*100;const loss=win+counts.value.loss/n*100;return {background:`conic-gradient(#46a97b 0 ${win}%,#d86e69 ${win}% ${loss}%,#cbd5df ${loss}% 100%)`}})
-const pnlRange = computed(() => {const vals=periodRecords.value.map(r=>r.pnl);const wins=vals.filter(v=>v>0);const losses=vals.filter(v=>v<0);return {min:Math.min(0,...vals),max:Math.max(0,...vals),avgWin:wins.length?Math.round(wins.reduce((a,b)=>a+b,0)/wins.length):0,avgLoss:losses.length?Math.round(losses.reduce((a,b)=>a+b,0)/losses.length):0}})
-const groupedChart = computed(() => {const grouped=new Map();visibleDays.value.forEach(day=>{let key=day.date;if(granularity.value==='周'){const dayOfMonth=Number(day.date.slice(3));key=`第 ${Math.ceil(dayOfMonth/7)} 周`}else if(granularity.value==='月'){key=day.date.slice(0,2)+' 月'}const value=grouped.get(key)||{settled:0,floating:0};value.settled+=day.settled||0;value.floating+=day.floating||0;grouped.set(key,value)});return [...grouped.entries()].map(([label,value])=>({label,...value}))})
-const chartLabels = computed(() => groupedChart.value.map(item=>item.label))
-const chartData = computed(() => groupedChart.value)
-const trendPoints = computed(() => {let sum=0;const data=chartData.value.map(item=>{if(chartType.value==='cumulative'){sum+=item.settled;return sum}return item.settled});return scalePoints(data)})
-const floatingPoints = computed(() => scalePoints(chartData.value.map(item=>item.floating)))
-const trendPolyline = computed(() => trendPoints.value.map(point=>`${point.x},${point.y}`).join(' '))
-const floatingPolyline = computed(() => floatingPoints.value.map(point=>`${point.x},${point.y}`).join(' '))
-const trendArea = computed(() => trendPoints.value.length?`M ${trendPoints.value[0].x},105 L ${trendPolyline.value} L ${trendPoints.value.at(-1).x},105 Z`:'')
+const loading = ref(false)
+const error = ref('')
+const summary = ref(null)
+const statItems = ref([])
+const dayItems = ref([])
+const bucketItems = ref([])
+const tradeItems = ref([])
+const symbolRows = ref([])
+const ready = computed(() => !!summary.value)
 
-function scalePoints(values){if(!values.length)return [];const max=Math.max(250,...values.map(v=>Math.abs(v)));return values.map((value,index)=>({x:values.length===1?450:12+index*876/(values.length-1),y:105-value/max*83}))}
-function money(value){const amount=Math.abs(value).toLocaleString('en-US',{maximumFractionDigits:0});return `${value<0?'−':value>0?'+':''}$${amount}`}
-function tone(value){return value>0?'positive':value<0?'negative':'neutral'}
-function percent(value){return periodRecords.value.length?Math.round(value/periodRecords.value.length*100):0}
-function barStyle(value){const height=Math.max(3,Math.min(78,Math.abs(value)/13));return {height:`${height}%`,top:value<0?'50%':`calc(50% - ${height}%)`}}
-function resetFilters(){selectedFilter.value='all';searchText.value=''}
-function exportCsv(){const rows=[['标的','结构','到期','入场权利金','最大风险','持有日','保护成本','结果口径','管理后净结果','原价差对照'],...visibleRecords.value.map(r=>[r.symbol,r.legs,r.expiry,r.credit,r.risk,r.days,r.protection,r.basis,r.pnl,r.baseline])];const csv=`\uFEFF${rows.map(row=>row.map(value=>`"${String(value).replaceAll('"','""')}"`).join(',')).join('\r\n')}`;const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));const link=document.createElement('a');link.href=url;link.download='scorecard-demo.csv';link.click();URL.revokeObjectURL(url)}
-async function shareSummary(){if(navigator.clipboard)await navigator.clipboard.writeText(`战绩演示：${money(settledTotal.value)} · ${periodRecords.value.length} 笔静态样例`)}
+// ---------------------------------------------------------------- 头部
+const marketDayLabel = computed(() => (summary.value?.marketDay || '').replaceAll('-', '/') || '—')
+const monthLabel = computed(() => (summary.value?.marketDay || '').slice(0, 7).replace('-', '/') || '—')
+const syncBadge = computed(() => {
+  if (!summary.value) return loading.value ? '正在加载' : '暂无同步数据'
+  const t = String(summary.value.syncTime || '').match(/\d{4}-(\d{2})-(\d{2})[ T](\d{2}:\d{2})/)
+  return `交易日 ${marketDayLabel.value}${t ? ` · 同步于 ${t[1]}/${t[2]} ${t[3]}` : ''}`
+})
+const shareLabel = computed(() => (range.value === 'month' ? '分享本月' : '分享全部'))
+
+// ---------------------------------------------------------------- 图表
+const dayRows = computed(() => toBuckets(dayItems.value, 'day'))
+const chartData = computed(() => (granularity.value === 'day' ? dayRows.value : toBuckets(bucketItems.value, granularity.value)))
+const hasChartData = computed(() => chartData.value.some(item => item.settled !== null || (floatingOn.value && item.floating !== null)))
+const floatingOn = computed(() => showFloating.value && granularity.value === 'day' && chartType.value !== 'cumulative')
+const axisMax = computed(() => niceMax(chartType.value === 'cumulative'
+  ? chartData.value.map(item => item.cumulative)
+  : chartData.value.flatMap(item => [item.settled, floatingOn.value ? item.floating : null])))
+const axisLabels = computed(() => [axisMax.value, axisMax.value / 2, 0, -axisMax.value / 2, -axisMax.value].map(axisUsd))
+const trendPoints = computed(() => scalePoints(chartData.value.map(item => (chartType.value === 'cumulative' ? item.cumulative : item.settled ?? 0))))
+const floatingPoints = computed(() => scalePoints(chartData.value.map(item => item.floating ?? 0)))
+const trendPolyline = computed(() => trendPoints.value.map(point => `${point.x},${point.y}`).join(' '))
+const floatingPolyline = computed(() => floatingPoints.value.map(point => `${point.x},${point.y}`).join(' '))
+const trendArea = computed(() => (trendPoints.value.length ? `M ${trendPoints.value[0].x},105 L ${trendPolyline.value} L ${trendPoints.value.at(-1).x},105 Z` : ''))
+
+// ---------------------------------------------------------------- 汇总条（按结算日）
+const settledTotal = computed(() => dayRows.value.reduce((sum, day) => sum + (day.settled || 0), 0))
+const maxGain = computed(() => { const gains = dayRows.value.map(day => day.settled).filter(v => v !== null && v > 0); return gains.length ? Math.max(...gains) : null })
+const maxLoss = computed(() => { const losses = dayRows.value.map(day => day.settled).filter(v => v !== null && v < 0); return losses.length ? Math.min(...losses) : null })
+const settledDays = computed(() => dayRows.value.filter(day => day.settled !== null).length)
+const worstLossShare = computed(() => {
+  const losses = dayRows.value.map(day => day.settled || 0).filter(value => value < 0).sort((a, b) => a - b)
+  if (!losses.length) return '—'
+  const total = Math.abs(losses.reduce((sum, value) => sum + value, 0))
+  return Math.round(Math.abs(losses.slice(0, 5).reduce((sum, value) => sum + value, 0)) / total * 100)
+})
+
+// ---------------------------------------------------------------- 明细
+const allRecords = computed(() => tradeItems.value.map(toRecord))
+const stats = computed(() => summarize(allRecords.value))
+const managedRecords = computed(() => stats.value.priced.filter(r => r.baseline !== null && (r.protection > 0 || Math.abs(r.pnl - r.baseline) >= 0.5)))
+const managedNet = computed(() => managedRecords.value.reduce((sum, r) => sum + r.pnl, 0))
+const baselineNet = computed(() => managedRecords.value.reduce((sum, r) => sum + r.baseline, 0))
+const rescuedRecords = computed(() => [...managedRecords.value].sort((a, b) => (b.pnl - b.baseline) - (a.pnl - a.baseline)).slice(0, 3))
+const winLossStyle = computed(() => { const n = stats.value.priced.length || 1; const win = stats.value.profit / n * 100; const loss = win + stats.value.loss / n * 100; return { background: `conic-gradient(#46a97b 0 ${win}%,#d86e69 ${win}% ${loss}%,#cbd5df ${loss}% 100%)` } })
+const filters = computed(() => [
+  { key: 'all', label: '全部记录', count: allRecords.value.length },
+  { key: 'profit', label: '盈利', count: allRecords.value.filter(r => r.pnl > 0).length },
+  { key: 'loss', label: '亏损', count: allRecords.value.filter(r => r.pnl < 0).length },
+  { key: 'pending', label: '待复核', count: allRecords.value.filter(r => r.pending).length }
+].filter(f => f.key !== 'pending' || f.count))
+const visibleRecords = computed(() => {
+  const query = searchText.value.trim().toLowerCase()
+  const f = selectedFilter.value
+  return allRecords.value.filter(r => (f === 'all' || (f === 'profit' ? r.pnl > 0 : f === 'loss' ? r.pnl < 0 : r.pending))
+    && (!query || `${r.symbol} ${r.company} ${r.legs}`.toLowerCase().includes(query)))
+})
+const pageRecords = computed(() => visibleRecords.value.slice(0, pageSize.value))
+
+// ---------------------------------------------------------------- 本月开出的信号 / 按标的
+const cohort = computed(() => statItems.value.find(item => item.id === 'month')?.tracking || {})
+const cohortCounts = computed(() => {
+  const total = num(cohort.value.total) ?? 0
+  const priced = num(cohort.value.priced) ?? 0
+  const profit = num(cohort.value.winners) ?? 0
+  return { total, profit, loss: Math.max(0, priced - profit), open: Math.max(0, total - priced) }
+})
+const cohortBars = computed(() => [{ label: '盈利', value: cohortCounts.value.profit, color: 'green' }, { label: '亏损', value: cohortCounts.value.loss, color: 'red' }, { label: '未定价', value: cohortCounts.value.open, color: 'gray' }])
+const symbolSummary = computed(() => [...symbolRows.value]
+  .map(item => ({ symbol: item.symbol, settled: num(item.settledPnlUsd) ?? 0, floating: num(item.livePnlUsd) ?? 0, total: num(item.pnlUsd) ?? 0, groups: (num(item.settledGroups) ?? 0) + (num(item.liveGroups) ?? 0) }))
+  .sort((a, b) => Math.abs(b.total) - Math.abs(a.total)).slice(0, 6).sort((a, b) => b.total - a.total))
+const symbolMax = computed(() => Math.max(1, ...symbolSummary.value.map(item => Math.abs(item.total))))
+
+function symbolWidth(value) { return Math.max(8, Math.min(100, Math.abs(value) / symbolMax.value * 100)) }
+function scalePoints(values) { if (!values.length) return []; const max = axisMax.value; return values.map((value, index) => ({ x: values.length === 1 ? 450 : 12 + index * 876 / (values.length - 1), y: 105 - value / max * 83 })) }
+function percent(value) { return stats.value.priced.length ? Math.round(value / stats.value.priced.length * 100) : 0 }
+function barStyle(value) { const height = Math.max(2, Math.min(48, Math.abs(value) / axisMax.value * 48)); return { height: `${height}%`, top: value < 0 ? '50%' : `calc(50% - ${height}%)` } }
+function barTitle(item) { return `${item.key} · 结算 ${money(item.settled)}（${item.count} 笔）${item.floating !== null ? ` · 浮动 ${money(item.floating)}` : ''}` }
+function showLabel(index) { const n = chartData.value.length; const step = Math.ceil(n / 14); return n <= 14 || index % step === 0 || index === n - 1 }
+function resetFilters() { selectedFilter.value = 'all'; searchText.value = '' }
+function exportCsv() {
+  const rows = [['标的', '结构', '到期', '结算日', '入场权利金', '最大风险', '持有日', '保护成本', '结果口径', '管理后净结果', '原价差对照', '不计入战绩'], ...visibleRecords.value.map(r => [r.symbol, r.legs, r.expiryDate || r.expiry, r.day, r.credit ?? '', r.risk ?? '', r.days ?? '', r.protection, r.basis, r.pending ? '待复核' : r.pnl, r.baseline ?? '', r.excluded ? '是' : ''])]
+  const csv = `\uFEFF${rows.map(row => row.map(value => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\r\n')}`
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }))
+  const link = document.createElement('a'); link.href = url; link.download = `scorecard-${range.value}-${summary.value?.marketDay || ''}.csv`; link.click(); URL.revokeObjectURL(url)
+}
+async function shareSummary() {
+  const label = range.value === 'month' ? `${monthLabel.value} 本月` : '全部区间'
+  const text = `OSM 战绩 · ${label}：结算合计 ${money(settledTotal.value)} · ${stats.value.priced.length} 笔已结算 · 胜率 ${percent(stats.value.profit)}%（管理后口径）`
+  if (navigator.clipboard) await navigator.clipboard.writeText(text)
+}
+
+// ---------------------------------------------------------------- 数据加载
+async function loadDaily() {
+  const base = { range: range.value, scope: scope.value }
+  const [days, buckets] = await Promise.all([
+    getRecordKind('daily', { ...base, granularity: 'day' }),
+    granularity.value === 'day' ? null : getRecordKind('daily', { ...base, granularity: granularity.value })
+  ])
+  dayItems.value = days?.items || []
+  bucketItems.value = buckets?.items || []
+}
+async function loadPeriod() {
+  const [trades, symbols] = await Promise.all([
+    getRecordKind('trade', { range: range.value, scope: scope.value }),
+    getRecordKind('symbol', { range: range.value }),
+    loadDaily()
+  ])
+  tradeItems.value = trades?.items || []
+  symbolRows.value = symbols?.items || []
+  pageSize.value = PAGE
+}
+async function loadAll() {
+  loading.value = true
+  error.value = ''
+  try {
+    const [head, stat] = await Promise.all([getRecordSummary(), getRecordKind('stat')])
+    summary.value = head
+    statItems.value = stat?.items || []
+    await loadPeriod()
+  } catch (e) {
+    summary.value = null
+    const message = e?.message || '加载失败'
+    error.value = /暂无数据/.test(message) ? '' : message
+  } finally {
+    loading.value = false
+  }
+}
+async function reload(task) {
+  if (!ready.value) return
+  loading.value = true
+  try { await task() } catch (e) { error.value = e?.message || '加载失败' } finally { loading.value = false }
+}
+watch([range, scope], () => reload(loadPeriod))
+watch(granularity, () => reload(loadDaily))
+watch([selectedFilter, searchText], () => { pageSize.value = PAGE })
+onMounted(loadAll)
 </script>
 
 <style scoped>
@@ -151,4 +259,5 @@ async function shareSummary(){if(navigator.clipboard)await navigator.clipboard.w
 @media(max-width:950px){.summary-strip{grid-template-columns:repeat(3,1fr);row-gap:12px}.summary-cell:nth-child(4){border-right:0}.monthly-grid{grid-template-columns:1fr}.quality-grid{grid-template-columns:1fr 1fr}.control-hint{display:none}}
 @media(max-width:700px){.page-heading{align-items:flex-start;flex-direction:column;gap:9px}.heading-meta{width:100%;justify-content:space-between}.chart-panel{padding:12px}.control-row{flex-wrap:wrap}.control-row+.control-row{margin-top:7px}.control-hint{display:none}.chart-type-label{margin-left:auto}.range-label{margin-left:0}.floating-switch{margin:3px 0 0 auto}.performance-chart{height:160px;grid-template-columns:44px minmax(0,1fr)}.chart-axis{font-size:6px}.chart-legend{gap:8px;font-size:7px}.summary-strip{grid-template-columns:repeat(2,1fr);padding:10px}.summary-total,.summary-cell{min-height:44px;padding:0 8px}.summary-strip>div:nth-child(odd){border-right:0}.summary-total strong{font-size:15px}.rescued-list{grid-template-columns:1fr}.management-summary{grid-template-columns:repeat(2,1fr);row-gap:12px}.management-summary>div:nth-child(2){border-right:0}.quality-grid{grid-template-columns:1fr}.records-toolbar{align-items:flex-start;flex-direction:column;padding:0 11px 9px}.record-filters{max-width:100%;overflow:auto}.search-input{width:100%}.records-heading{padding:12px}.records-footer{flex-direction:column}.disclaimer{align-items:flex-start}}
 @media(max-width:390px){.segmented button{padding:5px 6px;font-size:7px}.segmented.compact button{padding:5px}.floating-switch :deep(.el-switch__label){font-size:6px}.summary-cell span{font-size:7px}.summary-cell strong{font-size:11px}.chart-footnote{font-size:6px}}
+.status-panel{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;min-height:260px;padding:30px 20px;text-align:center}.status-icon{display:flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:50%;background:#eef5fc;color:#5b91c7;font-size:18px}.status-panel strong{color:#3d5a7a;font-size:13px}.status-panel p{margin:0;color:#8e9daf;font-size:9px}.status-panel button{margin-top:6px;padding:6px 12px;border:1px solid #dfe8f2;border-radius:7px;background:#fff;color:#3c78b5;font-size:9px;cursor:pointer}.deploy-tip{display:flex;align-items:center;gap:6px;max-width:420px;margin-top:4px;padding:7px 10px;border-radius:7px;background:#f4f8fc;color:#7d93aa;font-size:8px;line-height:1.5;text-align:left}.deploy-tip i{flex:none;width:5px;height:5px;border-radius:50%;background:#7ea8d3}.spinning{animation:sc-spin 1s linear infinite}@keyframes sc-spin{to{transform:rotate(360deg)}}.is-loading{opacity:.6;transition:opacity .15s}.chart-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#a0adba;font-size:9px}.rescued-empty{margin-top:10px;padding:14px;border:1px dashed #e6edf5;border-radius:7px;color:#a0adba;font-size:8px;text-align:center}.lots-tag{margin-left:5px;padding:1px 4px;border-radius:4px;background:#eaf6f0;color:#3f9670;font-size:7px;font-style:normal;font-weight:600}.excluded-pill{margin-left:4px;background:#f6f1ea;color:#a3814f}.pending-pill{background:#fdf4e6;color:#c58a3c}.more-button{margin-left:8px;font-size:7px}
 </style>
