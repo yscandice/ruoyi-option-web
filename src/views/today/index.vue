@@ -104,6 +104,7 @@
 </template>
 
 <script setup>
+import { isHandledError } from '@/services/http'
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Bell, Calendar, Clock, Coin, Connection, DataAnalysis, InfoFilled, Lock, Operation, QuestionFilled, Refresh, Share, Sunny, TrendCharts, Warning, ArrowDown } from '@element-plus/icons-vue'
@@ -225,7 +226,7 @@ async function refreshTodayData({ silent = false } = {}) {
         if (isMissingUpstreamSession(message)) {
           sessionConnected.value = false
           connectDialogVisible.value = true
-        } else if (!silent) ElMessage.error(message)
+        } else if (!silent && !isHandledError(feedResult.reason)) ElMessage.error(message)
       }
     }
   } finally {

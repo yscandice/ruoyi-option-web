@@ -89,6 +89,7 @@
 </template>
 
 <script setup>
+import { isHandledError } from '@/services/http'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { ArrowDown, Calendar, Clock, Connection, EditPen, InfoFilled, Loading, Search, Share, Sort, Warning } from '@element-plus/icons-vue'
@@ -209,7 +210,7 @@ async function loadScope(scope, { silent = false } = {}) {
   } catch (error) {
     const message = error.message || '加载失败'
     errors[scope] = /暂无数据/.test(message) ? '' : message
-    if (!silent && errors[scope]) ElMessage.warning(errors[scope])
+    if (!silent && errors[scope] && !isHandledError(error)) ElMessage.warning(errors[scope])
   } finally {
     loading[scope] = false
   }

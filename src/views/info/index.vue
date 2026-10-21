@@ -283,6 +283,7 @@
 </template>
 
 <script setup>
+import { isHandledError } from '@/services/http'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -383,7 +384,7 @@ async function load(key, param) {
   } catch (error) {
     const message = error.message || '加载失败'
     errors[key] = /暂无数据/.test(message) ? '' : message
-    if (dataOf(key)) ElMessage.warning(errors[key])
+    if (dataOf(key) && !isHandledError(error)) ElMessage.warning(errors[key])
   } finally {
     loading[key] = false
   }
