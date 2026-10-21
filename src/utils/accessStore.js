@@ -3,6 +3,7 @@
 // - views：各菜单最近一次接口返回的数据视图（来自响应头 X-Option-Data-* 或返回体 status 段）
 import { computed, reactive } from 'vue'
 import { getAccess } from '@/api/member'
+import { resetUpdateProgress } from '@/utils/updateStore'
 
 const THROTTLE_MS = 60000
 
@@ -42,6 +43,7 @@ export function resetAccess() {
   accessState.access = null
   accessState.loadedAt = 0
   accessState.views = {}
+  resetUpdateProgress()
 }
 
 // ---- W4：菜单数据视图 ----

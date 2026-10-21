@@ -39,6 +39,14 @@ function handleUnauthorized(config) {
   })
 }
 
+function updateProgressOf(path, body) {
+  if (!body || typeof body !== 'object') return null
+  if (path === '/api/member/updates' || path === '/api/member/updates/seen') return body.code === 200 ? body.data : null
+  if (path === '/api/member/settings') return body.data?.updates || null
+  if (path === '/api/member/updates/summary') return body.progress || null
+  return null
+}
+
 function toError(message, code, extra = {}) {
   const error = new Error(message)
   error.code = code
@@ -70,6 +78,9 @@ http.interceptors.response.use(response => {
   const body = response.data
   // 菜单数据接口的视图（实时 / 盘后、交易日、同步延迟、尚未放出）
   if (response.config?.method === 'get') import('@/utils/accessStore').then(m => m.recordDataView(pathOf(response.config), response.headers, body))
+  // 更新未读数（W6）：/api/member/updates、设置页 settings.updates、更新页 summary.progress、标记已读返回
+  const progress = updateProgressOf(pathOf(response.config), body)
+  if (progress) import('@/utils/updateStore').then(m => m.setUpdateProgress(progress))
   if (body && typeof body === 'object' && 'code' in body && body.code !== 200) {
     const code = Number(body.code)
     const message = body.msg || '请求失败'

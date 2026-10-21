@@ -106,6 +106,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { ArrowRight, Bell, Calendar, Check, CircleCheck, InfoFilled, Loading, Message, Promotion, Search, Tickets, VideoPlay } from '@element-plus/icons-vue'
 import { getUpdateKind, getUpdateSummary } from '@/api/option/update'
+import { markAllUpdatesSeen } from '@/utils/updateStore'
 
 const PAGE_STEP = 20
 // 按「去用一下」目标链接归类（沿用原有 功能 / 优化 / 修复 三种配色）
@@ -210,6 +211,8 @@ async function loadAll() {
     const [head, list] = await Promise.all([getUpdateSummary(), getUpdateKind('entry')])
     summary.value = head
     entries.value = [...(list?.items || [])].sort((a, b) => (a.order || 0) - (b.order || 0)).map(decorate)
+    // 打开更新列表即标记已读到当前序号（W6）；页面上的“N 条未读”保留本次打开时的状态
+    markAllUpdatesSeen(head?.progress?.currentSeq)
   } catch (e) {
     const message = e?.message || '加载失败'
     error.value = /暂无数据/.test(message) ? '' : message

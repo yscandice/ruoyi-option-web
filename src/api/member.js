@@ -26,3 +26,9 @@ export const uploadMemberAvatar = file => {
   form.append('avatarfile', file)
   return http.post('/system/user/profile/avatar', form)
 }
+
+// ---- 更新已读（W6） ----
+// { seenSeq, currentSeq, seenAt, unseen }
+export const getUpdateProgress = () => http.get('/api/member/updates')
+// 标记已读到 seenSeq（只增不减，不能超过 currentSeq）
+export const markUpdatesSeen = seenSeq => http.put('/api/member/updates/seen', { seenSeq })
