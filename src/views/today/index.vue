@@ -6,7 +6,7 @@
         <h1>欢迎回到期权交易工作台<DataViewTag resource="today" /></h1>
         <p class="date-line">{{ headerDate }} <span>·</span> 今日概览与交易动态</p>
       </div>
-      <div class="welcome-actions"><span :class="['preview-status', { connected: feed }]" :title="loadError || ''"><i/>{{ connectionLabel }}</span><el-button plain class="connect-button" @click="connectDialogVisible = true"><el-icon><Connection /></el-icon>{{ feed ? '重新连接' : '连接数据' }}</el-button><el-button :loading="loading" plain class="cat-button" @click="refreshTodayData()"><el-icon><Refresh /></el-icon>刷新</el-button><el-button :class="['cat-button', { enabled: catEnabled }]" plain @click="catEnabled = !catEnabled"><el-icon><Sunny /></el-icon>招财猫 {{ catEnabled ? '开' : '关' }}</el-button></div>
+      <div class="welcome-actions"><span :class="['preview-status', { connected: feed }]" :title="loadError || ''"><i/>{{ connectionLabel }}</span><el-button :loading="loading" plain class="cat-button" @click="refreshTodayData()"><el-icon><Refresh /></el-icon>刷新</el-button><el-button :class="['cat-button', { enabled: catEnabled }]" plain @click="catEnabled = !catEnabled"><el-icon><Sunny /></el-icon>招财猫 {{ catEnabled ? '开' : '关' }}</el-button></div>
     </section>
 
     <DelayedEmpty v-if="dataView.empty" resource="today" />
@@ -94,16 +94,6 @@
     </section>
 
     </template>
-
-    <el-dialog v-model="connectDialogVisible" title="连接 OSM 今日数据" width="min(440px, calc(100vw - 32px))" :close-on-click-modal="false">
-      <p class="connect-description">登录信息仅用于本次连接请求。后端会将 OSM 会话 Cookie 保存在 Redis；本页面不会保存密码。</p>
-      <el-form label-position="top" @submit.prevent="submitOsmLogin">
-        <el-form-item label="OSM 登录邮箱"><el-input v-model="loginForm.email" type="email" autocomplete="username" placeholder="输入 OSM 账号邮箱" /></el-form-item>
-        <el-form-item label="OSM 登录密码"><el-input v-model="loginForm.password" type="password" autocomplete="current-password" show-password placeholder="输入 OSM 登录密码" @keyup.enter="submitOsmLogin" /></el-form-item>
-      </el-form>
-      <p v-if="loadError" class="connection-error">{{ loadError }}</p>
-      <template #footer><el-button @click="connectDialogVisible = false">稍后</el-button><el-button type="primary" :loading="loginLoading" :disabled="!loginForm.email || !loginForm.password" @click="submitOsmLogin">登录并加载今日数据</el-button></template>
-    </el-dialog>
   </div>
 </template>
 
@@ -114,8 +104,8 @@ import { useDataView } from '@/utils/accessStore'
 import { isHandledError } from '@/services/http'
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Bell, Calendar, Clock, Coin, Connection, DataAnalysis, InfoFilled, Lock, Operation, QuestionFilled, Refresh, Share, Sunny, TrendCharts, Warning, ArrowDown } from '@element-plus/icons-vue'
-import { getTodayFeed, getSellerGuide, getEntitlement, getTodayDecisions, getManagementChoices, getPremarketBrief, getOptionUpdates, getOptionSupport, loginOsmAccount, syncTodayFeed, syncOptionResources } from '@/api/option/today'
+import { Bell, Calendar, Clock, Coin, DataAnalysis, InfoFilled, Lock, Operation, QuestionFilled, Refresh, Share, Sunny, TrendCharts, Warning, ArrowDown } from '@element-plus/icons-vue'
+import { getTodayFeed, getSellerGuide, getEntitlement, getTodayDecisions, getManagementChoices, getPremarketBrief, getOptionUpdates, getOptionSupport } from '@/api/option/today'
 import { calendar, dateLine, etToday, formatUsd, marginStats, marketDataEntries, marketFacts, premarketBrief, reminderCards, shortDay, signalCards, summaryMetrics, volatility, weekday, zonedTime } from '@/utils/todayFeed'
 
 // 盘后版：标题旁标签 / 尚未放出空状态（W4）
@@ -136,10 +126,7 @@ const premarket = ref(null)
 const ancillary = reactive({ sellerGuide: null, entitlement: null, decisions: null, managementChoices: null, updates: null, support: null })
 const endpointLoaded = reactive({ feed: false, sellerGuide: false, entitlement: false, decisions: false, managementChoices: false, premarket: false, updates: false, support: false })
 const loading = ref(false)
-const loginLoading = ref(false)
 const loadError = ref('')
-const connectDialogVisible = ref(false)
-const loginForm = reactive({ email: '', password: '' })
 const lastUpdated = ref('')
 let pollTimer = null
 
@@ -158,7 +145,7 @@ const dataOrigin = computed(() => {
   const at = feed.value.todayDesk?.generatedAtEt
   return at ? `看板生成于 ${at}` : '上游数据已同步'
 })
-const connectionLabel = computed(() => loading.value && !feed.value ? '正在加载' : feed.value ? `已连接 · ${lastUpdated.value || '数据就绪'}` : sessionConnected.value ? '已连接 OSM' : '尚未连接 OSM')
+const connectionLabel = computed(() => loading.value && !feed.value ? '正在加载' : feed.value ? `已连接 · ${lastUpdated.value || '数据就绪'}` : sessionConnected.value ? '数据就绪' : '暂无数据')
 const brief = computed(() => {
   const result = premarketBrief(premarket.value, feed.value)
   return feed.value && !endpointLoaded.premarket ? { ...result, tag: '今日未发布' } : result
@@ -241,10 +228,9 @@ async function refreshTodayData({ silent = false } = {}) {
       if (!silent || !feed.value) {
         feed.value = null
         loadError.value = message
-        if (isMissingUpstreamSession(message)) {
-          sessionConnected.value = false
-          connectDialogVisible.value = true
-        } else if (!silent && !isHandledError(feedResult.reason)) ElMessage.error(message)
+        // 会员端不再连接 OSM 账号（W7）：后端暂无数据时只在状态处提示，不弹错误
+        if (isNoData(message)) sessionConnected.value = false
+        else if (!silent && !isHandledError(feedResult.reason)) ElMessage.error(message)
       }
     }
   } finally {
@@ -252,28 +238,8 @@ async function refreshTodayData({ silent = false } = {}) {
   }
 }
 
-async function submitOsmLogin() {
-  if (!loginForm.email.trim() || !loginForm.password) return
-  loginLoading.value = true
-  loadError.value = ''
-  try {
-    await loginOsmAccount({ email: loginForm.email.trim(), password: loginForm.password })
-    sessionConnected.value = true
-    connectDialogVisible.value = false
-    ElMessage.success('OSM 已连接，正在同步今日数据')
-    await Promise.allSettled([syncTodayFeed(), syncOptionResources()])
-    await refreshTodayData()
-  } catch (error) {
-    loadError.value = friendlyError(error, 'OSM 登录失败，请检查账号或密码')
-  } finally {
-    loginForm.email = ''
-    loginForm.password = ''
-    loginLoading.value = false
-  }
-}
-
-function isMissingUpstreamSession(message) {
-  return /暂无数据|请先登录 OSM|请先通过 OSM 登录|会话 Cookie|上游登录|OSM 今日接口请求失败/i.test(message || '')
+function isNoData(message) {
+  return /暂无数据|请先同步/.test(message || '')
 }
 
 function friendlyError(error, fallback) {

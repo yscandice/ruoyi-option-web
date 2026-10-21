@@ -78,6 +78,10 @@
           <div class="security-row"><span class="security-symbol"><el-icon><Lock /></el-icon></span><div class="security-copy"><strong>登录密码</strong><small>••••••••••••</small></div><el-button plain @click="openPasswordDialog">修改密码 <el-icon><ArrowRight /></el-icon></el-button></div>
           <div class="security-row"><span class="security-symbol"><el-icon><Monitor /></el-icon></span><div class="security-copy"><strong>当前会话</strong><small>此浏览器 · 当前设备</small></div><span class="current-session"><i /> 正在使用</span></div>
         </section>
+        <section id="services" class="settings-card panel">
+          <div class="card-heading"><div><span class="section-kicker">MORE SERVICES</span><h2>更多服务</h2><p>以下功能本期暂未开放，开放后会在这里提供入口。</p></div><span class="heading-icon blue"><el-icon><Grid /></el-icon></span></div>
+          <div v-for="item in serviceItems" :key="item.key" class="security-row"><span class="security-symbol"><el-icon><component :is="item.icon" /></el-icon></span><div class="security-copy"><strong>{{ item.title }}</strong><small>{{ item.description }}</small></div><span class="closed-status">{{ features[item.key] ? '即将上线' : '暂未开放' }}</span></div>
+        </section>
       </main>
     </div>
 
@@ -96,7 +100,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowRight, Bell, Calendar, Camera, Check, CircleCheck, CirclePlus, Close, Coin, DataAnalysis, InfoFilled, Lock, Message, Monitor, Mute, RefreshLeft, Setting, TrendCharts, User, WarningFilled, Umbrella } from '@element-plus/icons-vue'
+import { ArrowRight, Bell, Calendar, Camera, Check, CircleCheck, CirclePlus, Close, Coin, DataAnalysis, Grid, Key, Present, Service, InfoFilled, Lock, Message, Monitor, Mute, RefreshLeft, Setting, TrendCharts, User, WarningFilled, Umbrella } from '@element-plus/icons-vue'
 import { getMemberSettings, resetMemberNotifications, updateMemberNotifications, updateMemberPassword, updateMemberProfile, uploadMemberAvatar } from '@/api/member'
 import { logout } from '@/api/auth'
 import { isHandledError } from '@/services/http'
@@ -116,8 +120,17 @@ const sections = [
   { id: 'profile', label: '个人资料', icon: User },
   { id: 'notifications', label: '通知偏好', icon: Bell },
   { id: 'display', label: '工作台显示', icon: Monitor },
-  { id: 'security', label: '账户安全', icon: Lock }
+  { id: 'security', label: '账户安全', icon: Lock },
+  { id: 'services', label: '更多服务', icon: Grid }
 ]
+// 不开放的功能（W7）：只展示“暂未开放”，不请求推荐码等数据、不触发浏览器通知授权
+const serviceItems = [
+  { key: 'referrals', title: '邀请好友', description: '邀请好友注册与推荐奖励。', icon: Present },
+  { key: 'push', title: '消息推送', description: '浏览器 / 手机推送提醒。', icon: Bell },
+  { key: 'apiKeys', title: 'API Key', description: '通过 API 获取信号数据。', icon: Key },
+  { key: 'advisoryContact', title: '顾问服务', description: '一对一顾问联系方式。', icon: Service }
+]
+const features = reactive({ referrals: false, push: false, apiKeys: false, advisoryContact: false })
 const strategyItems = [
   { key: 'seller', title: '卖方策略', description: '卖出期权收取权利金' },
   { key: 'midterm', title: '中期策略', description: '数周到数月的趋势仓位' },
@@ -203,6 +216,7 @@ async function loadSettings() {
     const res = await getMemberSettings()
     applyProfile(res.data?.profile)
     applyNotifications(res.data?.notifications)
+    Object.keys(features).forEach(key => { features[key] = res.data?.features?.[key] === true })
     loaded.value = true
   } catch (error) {
     if (!isHandledError(error)) loadError.value = error.message || '设置读取失败，请稍后重试'
@@ -416,4 +430,5 @@ onMounted(() => {
 .load-error{display:flex;align-items:center;gap:9px;padding:11px 14px;border-color:#f6d9d6;background:#fff8f7;color:#c05a55;font-size:10px}.load-error span{flex:1}.load-error :deep(.el-button){height:28px;border-radius:7px;font-size:10px}
 .password-form :deep(.el-form-item__label){font-size:11px;color:#5c718c}
 @media(max-width:680px){.strategy-options{grid-template-columns:1fr}.avatar-button{padding:0 9px}.card-actions{flex-wrap:wrap;gap:8px}.save-hint{width:100%}}
+.closed-status{display:inline-flex;align-items:center;padding:4px 9px;border-radius:999px;background:#f1f4f8;color:#8a97a8;font-size:9px;font-weight:700;white-space:nowrap}
 </style>
