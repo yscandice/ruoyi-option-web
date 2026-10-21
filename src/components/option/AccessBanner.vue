@@ -106,5 +106,14 @@ onBeforeUnmount(() => {
 })
 </script>
 <style scoped>
-.access-banner{border-bottom:1px solid #e3ecf7;background:#f2f8ff;color:#2d5b8f}.access-banner.warning{background:#fff8ee;border-bottom-color:#f3e3cc;color:#9a6a2c}.banner-inner{max-width:1440px;margin:0 auto;padding:9px 34px;display:flex;align-items:center;gap:9px;font-size:12px;line-height:1.5}.banner-icon{width:22px;height:22px;flex:none;border-radius:7px;display:grid;place-items:center;background:#e1efff;color:#2c73c9}.warning .banner-icon{background:#fdecd3;color:#c0812f}.banner-label{flex:none;padding:1px 8px;border-radius:999px;background:#ffffffb3;border:1px solid #d6e6f8;font-size:10px;font-weight:700;letter-spacing:.4px}.warning .banner-label{border-color:#f0dcbc}.banner-text strong{font-weight:700;color:#1f5aa3}.warning .banner-text strong{color:#8a5617}.banner-stale{font-style:normal;color:#c8613f;margin-left:2px}@media(max-width:1100px){.banner-inner{padding:9px 20px}}@media(max-width:760px){.banner-inner{padding:8px 14px;align-items:flex-start;font-size:11px}.banner-label{display:none}}
+/* 顶部提示条 · 长桥风格（docs/longbridge-ui.md §4.1）：青绿底、近黑文字、居中；显示逻辑不变 */
+.access-banner{position:relative;z-index:31;background:#00b8b8;color:#070a13}
+.access-banner.warning{background:#f59e0b}
+.banner-inner{max-width:1440px;min-height:38px;margin:0 auto;padding:7px 32px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:10px;font-size:14px;line-height:1.5;text-align:center}
+.banner-icon{width:22px;height:22px;flex:none;display:grid;place-items:center;border-radius:50%;background:rgba(7,10,19,.12);color:#070a13;font-size:13px}
+.banner-label{flex:none;height:22px;padding:0 10px;display:inline-flex;align-items:center;border-radius:999px;background:#070a13;color:#fff;font-size:12px;font-weight:600;letter-spacing:.3px}
+.banner-text strong{font-weight:700;color:#070a13}
+.banner-stale{margin-left:2px;font-style:normal;font-weight:600;color:#7a1d3c}
+@media(max-width:1100px){.banner-inner{padding:7px 20px}}
+@media(max-width:760px){.banner-inner{min-height:36px;padding:7px 16px;justify-content:flex-start;text-align:left;font-size:13px}.banner-label{display:none}}
 </style>
