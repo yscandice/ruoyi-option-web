@@ -10,3 +10,19 @@ export const registerMember = data => http.post('/api/member/register', data, { 
 
 // 当前身份与数据视图：level、view、trialEndsAt、trialRemainingSeconds、paidUntil、dataTradeDate、dataAsOf、releasedAt、nextReleaseAt、policies[]
 export const getAccess = () => http.get('/api/member/access')
+
+// ---- 设置页（W5） ----
+// 一次返回 profile、notifications、updates、features
+export const getMemberSettings = () => http.get('/api/member/settings')
+// 资料：{ displayName?, watchSymbols?, strategyPreferences?, strongAlerts?, updatedAt }；不要提交 email、avatar
+export const updateMemberProfile = data => http.put('/api/member/profile', data)
+// 通知开关：{ prefs, updatedAt }
+export const updateMemberNotifications = data => http.put('/api/member/notifications', data)
+export const resetMemberNotifications = () => http.post('/api/member/notifications/reset')
+// 若依个人中心：修改密码 { oldPassword, newPassword }、上传头像（表单字段 avatarfile）
+export const updateMemberPassword = data => http.put('/system/user/profile/updatePwd', data)
+export const uploadMemberAvatar = file => {
+  const form = new FormData()
+  form.append('avatarfile', file)
+  return http.post('/system/user/profile/avatar', form)
+}
