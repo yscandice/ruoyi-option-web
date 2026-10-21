@@ -24,6 +24,7 @@ import { Key, Lock, User, WarningFilled } from '@element-plus/icons-vue'
 import { getCaptcha, getCurrentUser, login } from '@/api/auth'
 import { setToken, setUser } from '@/utils/auth'
 import { resetAuthRedirect } from '@/services/http'
+import { resetAccess } from '@/utils/accessStore'
 const route = useRoute()
 const router = useRouter()
 const formRef = ref()
@@ -56,6 +57,7 @@ async function submit() {
     if (!result?.token) throw new Error('登录接口未返回访问令牌')
     setToken(result.token)
     resetAuthRedirect()
+    resetAccess()
     const info = await getCurrentUser()
     setUser(info?.user || {})
     router.replace(typeof route.query.redirect === 'string' ? route.query.redirect : '/today')

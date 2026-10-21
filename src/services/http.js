@@ -29,6 +29,7 @@ const isSilent = config => config?.silent === true || /^\/api\/member\/register(
 function handleUnauthorized(config) {
   if (isAuthRequest(config) || onAuthPage()) return
   clearSession()
+  import('@/utils/accessStore').then(m => m.resetAccess())
   if (redirecting) return
   redirecting = true
   ElMessage({ type: 'warning', message: '账号已停用或登录已失效，请重新登录', grouping: true })
@@ -77,6 +78,8 @@ http.interceptors.response.use(response => {
     notify(response.config, code, message)
     return Promise.reject(toError(code >= 500 && !body.msg ? BUSY_MESSAGE : message, code, { body }))
   }
+  // AjaxResult 顶层附带的 access：身份变化时刷新提示条
+  if (body && typeof body === 'object' && body.access) import('@/utils/accessStore').then(m => m.mergeAccess(body.access))
   return body
 }, error => {
   const status = error.response?.status

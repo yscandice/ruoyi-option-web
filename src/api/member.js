@@ -7,3 +7,6 @@ import http from '@/services/http'
 export const sendRegisterCode = data => http.post('/api/member/register/code', data, { headers: { isToken: false } })
 // 邮箱注册，成功后直接登录：{ email, password, emailCode, deviceHash? } → { token, data: { token, access } }
 export const registerMember = data => http.post('/api/member/register', data, { headers: { isToken: false } })
+
+// 当前身份与数据视图：level、view、trialEndsAt、trialRemainingSeconds、paidUntil、dataTradeDate、dataAsOf、releasedAt、nextReleaseAt、policies[]
+export const getAccess = () => http.get('/api/member/access')

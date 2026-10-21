@@ -45,6 +45,7 @@ import { Key, Lock, Message, WarningFilled } from '@element-plus/icons-vue'
 import { getCaptcha, getCurrentUser } from '@/api/auth'
 import { registerMember, sendRegisterCode } from '@/api/member'
 import { BUSY_MESSAGE, resetAuthRedirect } from '@/services/http'
+import { resetAccess } from '@/utils/accessStore'
 import { setToken, setUser } from '@/utils/auth'
 import { getDeviceHash } from '@/utils/device'
 
@@ -216,6 +217,7 @@ async function submit() {
     stopCountdown()
     setToken(token)
     resetAuthRedirect()
+    resetAccess()
     try { const info = await getCurrentUser(); setUser(info?.user || {}) } catch {}
     const level = result?.data?.access?.level
     router.replace('/today')
