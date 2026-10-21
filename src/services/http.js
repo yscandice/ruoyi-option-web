@@ -68,6 +68,8 @@ http.interceptors.request.use(config => {
 
 http.interceptors.response.use(response => {
   const body = response.data
+  // 菜单数据接口的视图（实时 / 盘后、交易日、同步延迟、尚未放出）
+  if (response.config?.method === 'get') import('@/utils/accessStore').then(m => m.recordDataView(pathOf(response.config), response.headers, body))
   if (body && typeof body === 'object' && 'code' in body && body.code !== 200) {
     const code = Number(body.code)
     const message = body.msg || '请求失败'

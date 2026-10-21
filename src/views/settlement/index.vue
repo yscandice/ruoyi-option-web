@@ -3,13 +3,14 @@
     <section class="page-heading">
       <div>
         <div class="eyebrow"><span class="eyebrow-dot" />SETTLED · TRADE REVIEW</div>
-        <h1>结算</h1>
+        <h1>结算<DataViewTag resource="settlement" /></h1>
         <p>已了结的每一笔，连同保护、加腿与平仓过程，集中回看。进行与跟踪只管还开着的仓位。</p>
       </div>
       <span class="demo-badge"><i />{{ syncBadge }}</span>
     </section>
 
-    <section class="settlement-summary">
+    <DelayedEmpty v-if="dataView.empty" resource="settlement" />
+    <section v-if="!dataView.empty" class="settlement-summary">
       <div class="summary-heading"><div><span class="summary-kicker">SETTLEMENT OVERVIEW</span><h2>结算统计</h2></div><span class="period-label"><el-icon><Calendar /></el-icon>{{ stats ? `已结算 ${stats.settledCount} 笔` : '全部已结算' }}</span></div>
       <div class="summary-grid">
         <article class="summary-card primary-stat"><div class="summary-label"><span class="stat-icon blue"><el-icon><Wallet /></el-icon></span><span>结算盈亏</span><el-icon class="info-icon"><InfoFilled /></el-icon></div><strong :class="toneOf(stats?.settledPnlUsd)">{{ signedUsd(stats?.settledPnlUsd) }}</strong><small>{{ stats ? `这 ${stats.settledCount} 笔实际拿到的钱（管理执行之后）` : '已结算交易的实际净结果' }}</small></article>
@@ -21,7 +22,7 @@
       <p class="summary-note"><el-icon><InfoFilled /></el-icon>结算统计基于已了结组合；管理前对照仅用于观察，不等同于可实现的实际收益。</p>
     </section>
 
-    <section class="records-section">
+    <section v-if="!dataView.empty" class="records-section">
       <div class="records-heading"><div><span class="section-kicker">CLOSED POSITIONS</span><h2>结算记录</h2><p>结算结果、原策略对照与风险管理过程</p></div><span class="record-count">{{ allRecords.length }} 条记录</span></div>
       <div class="records-toolbar">
         <div class="control-block">
@@ -89,10 +90,16 @@
 </template>
 
 <script setup>
+import DataViewTag from '@/components/option/DataViewTag.vue'
+import DelayedEmpty from '@/components/option/DelayedEmpty.vue'
+import { useDataView } from '@/utils/accessStore'
 import { computed, onMounted, ref, watch } from 'vue'
 import { Calendar, Check, Clock, Document, InfoFilled, Loading, Operation, Refresh, Right, ScaleToOriginal, Search, Tickets, TrendCharts, Umbrella, Wallet, Warning } from '@element-plus/icons-vue'
 import { getSettlementKind, getSettlementSummary } from '@/api/option/settlement'
 import { indexCards, plainUsd, recordParams, signedUsd, toneOf, toRecord } from '@/utils/settlementData'
+
+// 盘后版：标题旁标签 / 尚未放出空状态（W4）
+const dataView = useDataView('settlement')
 
 const PAGE_SIZE = 20
 const ranges = [

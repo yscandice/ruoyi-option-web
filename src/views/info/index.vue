@@ -3,7 +3,7 @@
     <section class="page-heading">
       <div>
         <div class="eyebrow"><span class="eyebrow-dot" />MARKET INTELLIGENCE</div>
-        <h1>信息</h1>
+        <h1>信息<DataViewTag resource="info" /></h1>
         <p>盘前市场、公司财报与重要事件，一站整理。</p>
       </div>
       <div class="heading-actions">
@@ -19,7 +19,8 @@
     </nav>
 
     <!-- 无数据 / 加载失败 -->
-    <section v-if="activeTab !== 'events' && showEmpty" class="other-section panel">
+    <DelayedEmpty v-if="dataView.empty" resource="info" />
+    <section v-else-if="activeTab !== 'events' && showEmpty" class="other-section panel">
       <div class="other-head"><span class="other-icon"><el-icon><component :is="activeSection.icon" /></el-icon></span><div><div class="section-label">{{ activeSection.label }} <span>{{ activeSection.english }}</span></div><p>{{ activeSection.description }}</p></div></div>
       <div class="other-content">
         <div class="other-illustration"><el-icon v-if="!loading[activeTab]"><component :is="activeSection.icon" /></el-icon><el-icon v-else class="spinning"><Loading /></el-icon><span/><span/></div>
@@ -283,6 +284,9 @@
 </template>
 
 <script setup>
+import DataViewTag from '@/components/option/DataViewTag.vue'
+import DelayedEmpty from '@/components/option/DelayedEmpty.vue'
+import { useDataView } from '@/utils/accessStore'
 import { isHandledError } from '@/services/http'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -290,6 +294,9 @@ import { ElMessage } from 'element-plus'
 import { ArrowLeft, ArrowRight, Calendar, ChatLineRound, DataAnalysis, InfoFilled, Loading, Notebook, Refresh, TrendCharts, Warning } from '@element-plus/icons-vue'
 import { getEarningsPage, getInfoFeed, getNotesPage, getPremarketPage } from '@/api/option/info'
 import { dayLabel, earningsTiles, feedSummary, findBlock, moversPosition, premarketMovers, premarketQuotes, premarketStories, reactionDots, shortDay, signed, trendBars, trendPath, valuationBars } from '@/utils/infoData'
+
+// 盘后版：标题旁标签 / 尚未放出空状态（W4）
+const dataView = useDataView('info')
 
 const sections = [
   { key: 'premarket', label: '盘前简报', hint: '每日市场摘要', english: 'PRE-MARKET', icon: ChatLineRound, description: '开盘前的市场脉搏、重点事件与当日观察。' },

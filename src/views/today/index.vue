@@ -3,12 +3,14 @@
     <section class="welcome-row">
       <div>
         <div class="eyebrow"><span class="live-dot" />OSM.AI SIGNAL DESK</div>
-        <h1>欢迎回到期权交易工作台</h1>
+        <h1>欢迎回到期权交易工作台<DataViewTag resource="today" /></h1>
         <p class="date-line">{{ headerDate }} <span>·</span> 今日概览与交易动态</p>
       </div>
       <div class="welcome-actions"><span :class="['preview-status', { connected: feed }]" :title="loadError || ''"><i/>{{ connectionLabel }}</span><el-button plain class="connect-button" @click="connectDialogVisible = true"><el-icon><Connection /></el-icon>{{ feed ? '重新连接' : '连接数据' }}</el-button><el-button :loading="loading" plain class="cat-button" @click="refreshTodayData()"><el-icon><Refresh /></el-icon>刷新</el-button><el-button :class="['cat-button', { enabled: catEnabled }]" plain @click="catEnabled = !catEnabled"><el-icon><Sunny /></el-icon>招财猫 {{ catEnabled ? '开' : '关' }}</el-button></div>
     </section>
 
+    <DelayedEmpty v-if="dataView.empty" resource="today" />
+    <template v-else>
     <section class="news-panel">
       <div class="news-heading">
         <div class="news-title"><div><h2>今日要闻 <span>· {{ newsDay }}</span></h2><p>市场环境、重要事件与当日观察</p></div><span class="data-origin"><i/>{{ dataOrigin }}</span></div>
@@ -91,6 +93,8 @@
       </aside>
     </section>
 
+    </template>
+
     <el-dialog v-model="connectDialogVisible" title="连接 OSM 今日数据" width="min(440px, calc(100vw - 32px))" :close-on-click-modal="false">
       <p class="connect-description">登录信息仅用于本次连接请求。后端会将 OSM 会话 Cookie 保存在 Redis；本页面不会保存密码。</p>
       <el-form label-position="top" @submit.prevent="submitOsmLogin">
@@ -104,6 +108,9 @@
 </template>
 
 <script setup>
+import DataViewTag from '@/components/option/DataViewTag.vue'
+import DelayedEmpty from '@/components/option/DelayedEmpty.vue'
+import { useDataView } from '@/utils/accessStore'
 import { isHandledError } from '@/services/http'
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
@@ -111,7 +118,13 @@ import { Bell, Calendar, Clock, Coin, Connection, DataAnalysis, InfoFilled, Lock
 import { getTodayFeed, getSellerGuide, getEntitlement, getTodayDecisions, getManagementChoices, getPremarketBrief, getOptionUpdates, getOptionSupport, loginOsmAccount, syncTodayFeed, syncOptionResources } from '@/api/option/today'
 import { calendar, dateLine, etToday, formatUsd, marginStats, marketDataEntries, marketFacts, premarketBrief, reminderCards, shortDay, signalCards, summaryMetrics, volatility, weekday, zonedTime } from '@/utils/todayFeed'
 
+// 盘后版：标题旁标签 / 尚未放出空状态（W4）
+const dataView = useDataView('today')
+
 const POLL_MS = 60000
+// 盘后版数据是静态快照：轮询间隔放慢到 5 分钟
+const DELAYED_POLL_MS = 300000
+let lastPollAt = Date.now()
 const newsOpen = ref(true)
 const catEnabled = ref(true)
 const timezone = ref('ET')
@@ -185,7 +198,12 @@ const loadedEndpointCount = computed(() => endpointStatuses.value.filter(item =>
 
 onMounted(() => {
   refreshTodayData()
-  pollTimer = window.setInterval(() => { if (!document.hidden && !loading.value) refreshTodayData({ silent: true }) }, POLL_MS)
+  pollTimer = window.setInterval(() => {
+    if (document.hidden || loading.value) return
+    if (dataView.value.delayed && Date.now() - lastPollAt < DELAYED_POLL_MS - 1000) return
+    lastPollAt = Date.now()
+    refreshTodayData({ silent: true })
+  }, POLL_MS)
 })
 onBeforeUnmount(() => window.clearInterval(pollTimer))
 

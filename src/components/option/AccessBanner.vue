@@ -53,12 +53,14 @@ const banner = computed(() => {
   if (a.level !== 'DELAYED') return null
   const stale = a.stale === true || routeView.value?.stale === true
   const next = bjMonthDayTime(a.nextReleaseAt)
-  const empty = a.empty === true || !a.dataTradeDate || routeView.value?.empty === true
+  const empty = routeView.value ? routeView.value.empty === true : (a.empty === true || !a.dataTradeDate)
   if (empty) {
     return { tone: 'warning', icon: Clock, label: '盘后数据', parts: [{ text: '盘后数据尚未放出' }, ...(next ? [{ text: '，预计 ' }, { text: next, strong: true }, { text: '（北京时间）更新' }] : [])], stale }
   }
-  const day = tradeMonthDay(a.dataTradeDate)
-  const week = tradeWeekLabel(a.dataTradeDate, new Date(now.value))
+  // 当前菜单接口返回的交易日优先（与菜单标签一致），其余页面用 access 的 dataTradeDate
+  const tradeDate = routeView.value?.view === 'DELAYED' && routeView.value.tradeDate ? routeView.value.tradeDate : a.dataTradeDate
+  const day = tradeMonthDay(tradeDate)
+  const week = tradeWeekLabel(tradeDate, new Date(now.value))
   return {
     tone: 'warning', icon: Clock, label: '盘后数据',
     parts: [{ text: '当前为 ' }, { text: `${week}（${day}）`, strong: true }, { text: ' 收盘数据' }, ...(next ? [{ text: '，下次更新 ' }, { text: next, strong: true }, { text: '（北京时间）' }] : [])],

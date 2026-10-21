@@ -3,13 +3,13 @@
     <section class="page-heading">
       <div>
         <div class="eyebrow"><span class="eyebrow-dot" />ACTIVE POSITIONS</div>
-        <h1>进行</h1>
+        <h1>进行<DataViewTag resource="conduct" /></h1>
         <p>查看在途信号、保护动作与持仓管理进度。</p>
       </div>
       <div class="heading-tools"><span :class="['demo-pill', { live: summary }]"><i />{{ syncBadge }}</span><span class="sync-pill" :title="summary?.status?.message || ''"><el-icon><Connection /></el-icon>{{ marketBadge }}</span></div>
     </section>
 
-    <section class="filter-panel">
+    <section v-if="!dataView.empty" class="filter-panel">
       <div class="filter-heading"><span class="filter-title">信号范围</span><span class="filter-tip">选择状态查看对应组合</span></div>
       <div class="filter-row">
         <div class="filter-tabs" role="tablist" aria-label="信号范围">
@@ -31,7 +31,8 @@
       </div>
     </section>
 
-    <section v-if="!currentData" class="empty-results state-panel">
+    <DelayedEmpty v-if="dataView.empty" resource="conduct" />
+    <section v-else-if="!currentData" class="empty-results state-panel">
       <span class="empty-icon"><el-icon :class="{ spinning: currentLoading }"><Loading v-if="currentLoading" /><Search v-else /></el-icon></span>
       <strong>{{ currentLoading ? '正在加载数据' : '暂无数据' }}</strong>
       <p>{{ currentLoading ? '正在从本地服务读取 OSM 同步数据…' : (errors[currentScope] || '后端定时任务尚未同步该栏目的数据，请稍后刷新。') }}</p>
@@ -65,7 +66,7 @@
     </section>
     <section v-else class="empty-results"><span class="empty-icon"><el-icon><Search /></el-icon></span><strong>{{ searchText ? '没有找到匹配的组合' : '该栏目暂无组合' }}</strong><p>{{ searchText ? '调整筛选状态或搜索条件后再查看。' : '最近一次同步中该栏目没有条目。' }}</p><button v-if="searchText" type="button" @click="resetFilters">重置筛选</button></section>
 
-    <section class="lower-grid">
+    <section v-if="!dataView.empty" class="lower-grid">
       <article class="bottom-panel week-panel">
         <div class="bottom-heading"><div><span class="bottom-kicker">THIS WEEK</span><h2>本周活动</h2></div><span class="week-date">{{ weekRange }}</span></div>
         <div class="week-days"><div v-for="day in weekDays" :key="day.day" :class="['week-day', { today: day.today }]"><span>{{ day.name }}</span><strong>{{ day.count }}</strong><i /></div></div>
@@ -89,6 +90,9 @@
 </template>
 
 <script setup>
+import DataViewTag from '@/components/option/DataViewTag.vue'
+import DelayedEmpty from '@/components/option/DelayedEmpty.vue'
+import { useDataView } from '@/utils/accessStore'
 import { isHandledError } from '@/services/http'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
@@ -96,6 +100,9 @@ import { ArrowDown, Calendar, Clock, Connection, EditPen, InfoFilled, Loading, S
 import { getConductScope, getConductSummary } from '@/api/option/conduct'
 import { dayLabel, etLabelDay, toTrades, weekOf } from '@/utils/conductData'
 import { shortDay } from '@/utils/todayFeed'
+
+// 盘后版：标题旁标签 / 尚未放出空状态（W4）
+const dataView = useDataView('conduct')
 
 const NOTE_KEY = 'option-web-conduct-notes'
 const PAGE_SIZE = 40

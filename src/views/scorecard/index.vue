@@ -1,11 +1,12 @@
 <template>
   <div class="scorecard-page">
     <section class="page-heading">
-      <div><div class="eyebrow"><span class="eyebrow-dot"/>REVIEW · PERFORMANCE</div><h1>战绩</h1><p>每日结算净额 · 管理后口径</p></div>
+      <div><div class="eyebrow"><span class="eyebrow-dot"/>REVIEW · PERFORMANCE</div><h1>战绩<DataViewTag resource="record" /></h1><p>每日结算净额 · 管理后口径</p></div>
       <div class="heading-meta"><span>{{ syncBadge }}</span><el-button plain class="share-button" :disabled="!ready" @click="shareSummary"><el-icon><Share /></el-icon>{{ shareLabel }}</el-button></div>
     </section>
 
-    <section v-if="!ready" class="panel status-panel">
+    <DelayedEmpty v-if="dataView.empty" resource="record" />
+    <section v-else-if="!ready" class="panel status-panel">
       <span class="status-icon"><el-icon><component :is="loading ? Loading : Document" :class="{ spinning: loading }" /></el-icon></span>
       <strong>{{ loading ? '正在读取战绩…' : '暂无数据' }}</strong>
       <p>{{ loading ? '正在从本地服务读取 OSM 同步的战绩数据' : (error || '后端定时任务尚未同步战绩菜单的数据，请稍后刷新。') }}</p>
@@ -88,10 +89,16 @@
 </template>
 
 <script setup>
+import DataViewTag from '@/components/option/DataViewTag.vue'
+import DelayedEmpty from '@/components/option/DelayedEmpty.vue'
+import { useDataView } from '@/utils/accessStore'
 import { computed, onMounted, ref, watch } from 'vue'
 import { Calendar, DataAnalysis, Document, Download, InfoFilled, Loading, Right, Search, Share, Warning } from '@element-plus/icons-vue'
 import { getRecordKind, getRecordSummary } from '@/api/option/record'
 import { axisUsd, money, niceMax, num, plainUsd, summarize, toBuckets, toRecord, tone } from '@/utils/recordData'
+
+// 盘后版：标题旁标签 / 尚未放出空状态（W4）
+const dataView = useDataView('record')
 
 const PAGE = 20
 const scope = ref('all')

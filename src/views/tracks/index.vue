@@ -3,13 +3,14 @@
     <section class="tracks-layout">
       <main class="main-column">
         <div class="eyebrow"><span class="eyebrow-dot" />TRACKED <span>·</span> MY MARKS</div>
-        <h1>我的跟踪</h1>
+        <h1>我的跟踪<DataViewTag resource="follow" /></h1>
         <p class="intro">你在信号上做过的标记，以及系统对该信号的参考估值。</p>
 
         <section class="marked-panel">
           <div class="panel-topline"><span class="panel-icon"><el-icon><Star /></el-icon></span><span class="panel-kicker">MY MARKS</span><span class="local-label"><i />{{ syncBadge }}</span></div>
 
-          <div v-if="!ready" class="empty-content">
+          <DelayedEmpty v-if="dataView.empty" resource="follow" class="tracks-delayed-empty" />
+          <div v-else-if="!ready" class="empty-content">
             <div class="empty-visual"><span class="orbit orbit-one"/><span class="orbit orbit-two"/><span class="empty-star"><el-icon><component :is="loading ? Loading : Star" :class="{ spinning: loading }" /></el-icon></span><i class="spark spark-one"/><i class="spark spark-two"/></div>
             <span class="empty-tag">TRACKING SPACE</span>
             <h2>{{ loading ? '正在加载数据' : '暂无数据' }}</h2>
@@ -127,6 +128,9 @@
 </template>
 
 <script setup>
+import DataViewTag from '@/components/option/DataViewTag.vue'
+import DelayedEmpty from '@/components/option/DelayedEmpty.vue'
+import { useDataView } from '@/utils/accessStore'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ArrowRight, Calendar, CircleCheck, Clock, DataAnalysis, InfoFilled, Loading, Lock, Operation, Refresh, Search, Star, TrendCharts, Umbrella } from '@element-plus/icons-vue'
 import { FOLLOW_KINDS, getFollowKind, getFollowSummary } from '@/api/option/follow'
@@ -134,6 +138,9 @@ import { getConductScope } from '@/api/option/conduct'
 import { MARK_FILTERS, issuedLabel, signedUsd, toMarks } from '@/utils/followData'
 import { etLabelDay, toTrades, weekOf } from '@/utils/conductData'
 import { etToday, shortDay } from '@/utils/todayFeed'
+
+// 盘后版：标题旁标签 / 尚未放出空状态（W4）
+const dataView = useDataView('follow')
 
 const PAGE_SIZE = 30
 const WEEK_NAMES = ['一', '二', '三', '四', '五']
@@ -280,4 +287,5 @@ button.today-link{border:0;cursor:pointer}
 .day-counts{display:flex;align-items:center;gap:2px;color:#97a6b6;font-size:7px;font-style:normal}.day-counts .dot{width:4px;height:4px;margin-left:2px}
 .positions-list{display:flex;flex-direction:column}.position-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 2px;border-bottom:1px solid #f1f4f8}.position-symbol{display:flex;flex-direction:column;gap:2px;color:#2f4f70;font-size:10px;font-weight:700}.position-symbol small{color:#9eacbb;font-size:7px;font-weight:500}.position-state{display:flex;flex-direction:column;align-items:flex-end;gap:2px;min-width:0}.position-state small{overflow:hidden;max-width:170px;color:#8e9eaf;font-size:8px;text-overflow:ellipsis;white-space:nowrap}.position-state b{color:#6f8399;font-size:10px}.position-state b.positive{color:#3f9670}.position-state b.negative{color:#cf6464}
 @media(max-width:680px){.tally{grid-template-columns:1fr}.mark-list{grid-template-columns:1fr}.mark-search{max-width:none}}
+.tracks-delayed-empty{margin:14px 0 0;min-height:380px;border-radius:14px}
 </style>
