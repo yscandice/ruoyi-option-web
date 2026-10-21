@@ -5,6 +5,7 @@ const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/login', name: 'Login', component: () => import('@/views/login/index.vue'), meta: { public: true } },
+    { path: '/register', name: 'Register', component: () => import('@/views/register/index.vue'), meta: { public: true, title: '注册' } },
     { path: '/', redirect: '/today' },
     { path: '/today', name: 'Today', component: () => import('@/layout/OptionLayout.vue'), children: [
       { path: '', component: () => import('@/views/today/index.vue'), meta: { title: '今日信号' } }
