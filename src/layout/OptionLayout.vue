@@ -34,10 +34,7 @@
 
     <main class="option-main"><router-view /></main>
 
-    <footer class="option-footer"><div class="footer-inner">
-      <div class="footer-brand"><router-link class="brand" to="/today"><span class="brand-mark">O</span><span class="brand-copy"><strong>OSM<span>.AI</span></strong><small>OPTIONS INTELLIGENCE</small></span></router-link><p>期权交易工作台 · 研究与教育用途，不构成个性化投资建议。</p></div>
-      <div v-for="group in footerGroups" :key="group.title" class="footer-col"><strong>{{ group.title }}</strong><router-link v-for="item in group.items" :key="item.path" :to="item.path">{{ item.label }}</router-link></div>
-    </div><div class="footer-bottom"><span>© OSM.AI · 期权交易工作台</span><span>市场数据仅供参考</span></div></footer>
+    <footer class="option-footer"><div class="footer-bottom"><span>© OSM.AI · 期权交易工作台</span><span>市场数据仅供参考</span></div></footer>
 
     <transition name="fab"><button v-if="showTop" class="fab" type="button" aria-label="回到顶部" title="回到顶部" @click="scrollTop"><el-icon><Top /></el-icon></button></transition>
   </div>
@@ -66,12 +63,6 @@ const menus = [
   { path: '/academy', label: '学堂', icon: Reading },
   { path: '/updates', label: '更新', icon: Bell },
   { path: '/settings', label: '设置', icon: Setting }
-]
-const pick = paths => menus.filter(m => paths.includes(m.path))
-const footerGroups = [
-  { title: '信号台', items: pick(['/today', '/info', '/active', '/tracks']) },
-  { title: '复盘', items: pick(['/settlement', '/scorecard']) },
-  { title: '学习与账户', items: pick(['/academy', '/updates', '/settings']) }
 ]
 const user = ref(getUser())
 const userName = computed(() => user.value.nickName || user.value.userName || '交易员')
@@ -169,16 +160,7 @@ async function handleLogout() { try { await logout() } catch {} finally { clearS
 
 /* ---------- 多列页脚 ---------- */
 .option-footer{background:#fff;border-top:1px solid var(--lb-border)}
-.footer-inner{max-width:1248px;margin:0 auto;padding:48px 24px 32px;display:grid;grid-template-columns:minmax(0,2fr) repeat(3,minmax(0,1fr));gap:32px}
-.footer-brand .brand{color:var(--lb-text)}
-.footer-brand .brand-copy strong span{color:var(--lb-accent)}
-.footer-brand .brand-copy small{color:var(--lb-text-4)}
-.footer-brand p{max-width:340px;margin:16px 0 0;color:var(--lb-text-3);font-size:13px;line-height:1.7}
-.footer-col{display:flex;flex-direction:column;gap:12px}
-.footer-col strong{margin-bottom:4px;color:var(--lb-text);font-size:14px;font-weight:700}
-.footer-col a{width:max-content;color:var(--lb-text-3);font-size:14px;text-decoration:none;transition:color .2s}
-.footer-col a:hover,.footer-col a.router-link-active{color:var(--lb-accent)}
-.footer-bottom{max-width:1248px;margin:0 auto;padding:18px 24px 24px;display:flex;justify-content:space-between;gap:16px;border-top:1px solid var(--lb-border);color:var(--lb-text-4);font-size:12px}
+.footer-bottom{max-width:1248px;margin:0 auto;padding:18px 24px 24px;display:flex;justify-content:space-between;gap:16px;color:var(--lb-text-4);font-size:12px}
 
 /* ---------- 右下角圆形悬浮按钮 ---------- */
 .fab{position:fixed;right:24px;bottom:24px;z-index:28;width:48px;height:48px;display:grid;place-items:center;border:0;border-radius:50%;background:var(--lb-text);color:#fff;font-size:20px;cursor:pointer;box-shadow:0 8px 24px rgba(7,10,19,.24);transition:transform .2s var(--lb-ease),background .2s}
@@ -214,9 +196,6 @@ async function handleLogout() { try { await logout() } catch {} finally { clearS
   .mobile-logout{height:44px;padding:0 18px;border:1px solid var(--lb-border);border-radius:999px;background:#fff;color:var(--lb-text);font-size:14px;font-weight:600;cursor:pointer}
   .mobile-mask{position:fixed;inset:0;z-index:29;display:block;background:rgba(7,10,19,.4)}
   .option-main{padding:20px 14px 30px}
-  .footer-inner{grid-template-columns:repeat(3,minmax(0,1fr));gap:24px 16px;padding:32px 16px 24px}
-  .footer-brand{grid-column:1/-1}
-  .footer-col a{font-size:13px;min-height:28px;display:flex;align-items:center}
   .footer-bottom{padding:16px 16px 24px;flex-direction:column;gap:6px}
   .fab{right:16px;bottom:16px;width:44px;height:44px}
 }
