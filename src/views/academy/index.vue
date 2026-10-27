@@ -1,9 +1,13 @@
 <template>
   <div class="academy-page">
+    <section class="lb-hero"><div class="lb-wrap">
     <section class="page-heading">
       <div><div class="eyebrow"><span class="eyebrow-dot"/>OSM NEWCOMER ACADEMY</div><h1>学堂</h1><p>{{ home?.kick ? `${home.kick} · ` : '' }}从认识工作台开始，学会读懂每一张信号卡与后续提醒。</p></div>
       <span class="demo-badge"><i :class="{ stale: !summary }"/>{{ syncLabel }}</span>
     </section>
+    </div></section>
+
+    <div class="lb-wrap lb-body">
 
     <section v-if="!ready" class="status-panel panel">
       <span class="status-icon"><el-icon><component :is="loading ? Loading : Document" :class="{ spinning: loading }" /></el-icon></span>
@@ -62,6 +66,8 @@
 
         <section class="academy-disclaimer"><el-icon><Warning /></el-icon><span>{{ disclaimer }}</span></section>
       </main>
+    </div>
+
     </div>
 
     <el-dialog v-model="introVisible" :title="video?.title || '新人上路 · 工作台导览'" width="min(520px, calc(100vw - 32px))" class="academy-dialog"><div class="dialog-video" :style="video?.poster ? { backgroundImage: `linear-gradient(135deg,#1e4c7ccc,#4b89bccc),url(${video.poster})` } : null"><el-icon><VideoPlay /></el-icon><strong>{{ video?.title || '新人上路' }}</strong><span>{{ video?.meta }}</span></div><p class="dialog-copy">{{ video?.summary }}{{ home?.note ? ` ${home.note}` : '' }}</p><div class="dialog-chapters"><span v-for="(lesson, index) in lessons.slice(0, 3)" :key="lesson.id"><b>{{ String(index + 1).padStart(2, '0') }}</b>{{ lesson.navTitle }}</span></div></el-dialog>
@@ -299,4 +305,240 @@ onMounted(loadAll)
 @media(max-width:1000px){.academy-layout{grid-template-columns:195px minmax(0,1fr);gap:10px}.course-sidebar{padding:11px 8px}.lesson-card{grid-template-columns:110px minmax(0,1fr)}.notes-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){.lesson-article :deep(.scope),.lesson-article :deep(.acd-scope){grid-template-columns:1fr}.page-heading{align-items:flex-start;flex-direction:column;gap:8px}.academy-layout{grid-template-columns:1fr}.course-sidebar{position:static;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px;padding:9px}.sidebar-heading,.sidebar-caption,.sidebar-divider,.sidebar-help{grid-column:1/-1}.sidebar-heading{padding-bottom:9px}.sidebar-caption{margin:7px 4px 3px}.sidebar-course{padding:6px 4px}.sidebar-course-copy strong{font-size:7px}.sidebar-course-copy small{font-size:6px}.sidebar-utility{padding:6px 4px}.welcome-panel{grid-template-columns:minmax(0,1fr) 115px;padding:15px 14px 37px}.welcome-copy h2{font-size:16px}.welcome-copy p{font-size:8px}.welcome-art{transform:scale(.8);transform-origin:center right}.welcome-foot{right:12px;left:12px;font-size:6px}.intro-video{grid-template-columns:1fr}.video-thumb{min-height:150px}.video-copy{padding:12px 14px}.notes-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.note-card{min-height:120px}.lesson-card{grid-template-columns:96px minmax(0,1fr)}.lesson-cover{min-height:133px}.lesson-body{padding:9px}.lesson-body p{font-size:7px}.lesson-topics{gap:3px}.resources-grid{grid-template-columns:1fr}}
 @media(max-width:390px){.welcome-panel{grid-template-columns:minmax(0,1fr) 70px}.welcome-art{transform:scale(.65)}.welcome-copy h2{font-size:14px}.welcome-points{gap:7px}.welcome-points span{font-size:7px}.lesson-card{grid-template-columns:78px minmax(0,1fr)}.cover-graphic{width:44px;height:44px}.lesson-body h3{font-size:9px}.lesson-topline{gap:5px}.access-badge{font-size:6px}.lesson-duration{font-size:6px}.dialog-chapters{flex-direction:column}}
+</style>
+
+<style>
+html:has(.academy-page){overflow-x:clip}
+</style>
+
+<!-- 长桥风格覆盖层（docs/longbridge-ui.md） -->
+<style scoped>
+.academy-page{
+  --lb-text:#070a13;--lb-text-2:#4b5563;--lb-text-3:#6b7280;--lb-text-4:#a8aaad;
+  --lb-accent:#00b8b8;--lb-accent-bright:#00f0c4;--lb-accent-soft:rgba(0,184,184,.1);
+  --lb-bg:#f9fafb;--lb-bg-2:#f1f3f4;--lb-border:#e5e7eb;
+  --lb-up:#e8467c;--lb-up-soft:rgba(232,70,124,.1);--lb-down:#00b8b8;--lb-warn:#f59e0b;--lb-warn-soft:rgba(245,158,11,.12);
+  --pad-top:30px;--pad-bottom:42px;
+  --ink:var(--lb-text);--muted:var(--lb-text-3);--line:var(--lb-border);
+  margin:calc(var(--pad-top)*-1) calc(50% - 50vw) calc(var(--pad-bottom)*-1);
+  padding-bottom:64px;background:var(--lb-bg-2);color:var(--lb-text);
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue","Microsoft YaHei",sans-serif;
+}
+.lb-wrap{max-width:1248px;margin:0 auto;padding:0 24px}
+
+/* ---------- Hero ---------- */
+.lb-hero{position:relative;overflow:hidden;padding:56px 0 120px;color:#fff;
+  background:radial-gradient(900px 420px at 85% -10%,rgba(0,240,196,.22),transparent 60%),radial-gradient(700px 380px at 0% 120%,rgba(0,184,184,.18),transparent 60%),linear-gradient(180deg,#05070d,#0b1220)}
+.page-heading{align-items:flex-end;gap:24px;margin:0}
+.eyebrow{display:inline-flex;gap:8px;padding:6px 14px;border:1px solid rgba(255,255,255,.14);border-radius:999px;background:rgba(255,255,255,.06);color:rgba(255,255,255,.78);font-size:12px;font-weight:600;letter-spacing:1.6px}
+.eyebrow-dot{background:var(--lb-accent-bright);box-shadow:0 0 0 4px rgba(0,240,196,.18)}
+.page-heading h1{margin:18px 0 10px;color:#fff;font-size:48px;font-weight:700;line-height:1.1;letter-spacing:-1px}
+.page-heading p{color:rgba(255,255,255,.62);font-size:16px;line-height:1.6}
+.demo-badge{height:36px;box-sizing:border-box;gap:8px;padding:0 16px;border:1px solid rgba(255,255,255,.16);border-radius:999px;background:rgba(255,255,255,.08);backdrop-filter:blur(12px);color:rgba(255,255,255,.82);font-size:13px}
+.demo-badge i{width:7px;height:7px;background:var(--lb-accent-bright);box-shadow:0 0 0 4px rgba(0,240,196,.18)}
+.demo-badge i.stale{background:var(--lb-text-4);box-shadow:none}
+
+/* ---------- 正文（上浮叠在 Hero 上） ---------- */
+.lb-body{position:relative;margin-top:-84px}
+.panel{border:0;border-radius:20px;background:#fff;box-shadow:0 1px 2px rgba(7,10,19,.04),0 12px 32px rgba(7,10,19,.06)}
+.academy-layout{grid-template-columns:280px minmax(0,1fr);gap:24px}
+.academy-content{display:flex;flex-direction:column;gap:20px}
+.academy-content>*{margin:0}
+.section-kicker{color:var(--lb-text-4);font-size:12px;font-weight:600;letter-spacing:1.6px}
+
+/* 侧栏目录 */
+.course-sidebar{top:96px;padding:20px 14px}
+.sidebar-heading{gap:12px;padding:0 6px 16px;border-color:var(--lb-border)}
+.sidebar-icon{width:40px;height:40px;border:0;border-radius:12px;background:var(--lb-text);color:#fff;font-size:18px}
+.sidebar-heading strong{color:var(--lb-text);font-size:16px}
+.sidebar-heading small{color:var(--lb-text-3);font-size:12px}
+.sidebar-caption{margin:16px 8px 8px;color:var(--lb-text-4);font-size:12px;font-weight:600;letter-spacing:.5px}
+.sidebar-course{gap:12px;min-height:56px;margin-bottom:4px;padding:8px 10px;border:0;border-radius:14px;transition:background .15s}
+.sidebar-course:hover{background:var(--lb-bg)}
+.sidebar-course.selected{background:var(--lb-text)}
+.course-number{width:32px;height:32px;border:0;border-radius:10px;background:var(--lb-bg-2);color:var(--lb-text-2);font-size:12px;font-weight:700}
+.selected .course-number{background:var(--lb-accent-bright);color:var(--lb-text)}
+.sidebar-course-copy strong{color:var(--lb-text);font-size:14px;font-weight:600}
+.sidebar-course-copy small{color:var(--lb-text-3);font-size:12px}
+.selected .sidebar-course-copy strong{color:#fff}
+.selected .sidebar-course-copy small{color:rgba(255,255,255,.55)}
+.sidebar-arrow{color:var(--lb-text-4)}
+.selected .sidebar-arrow{color:#fff}
+.sidebar-lock{color:var(--lb-warn)}
+.sidebar-divider{margin:14px 8px;background:var(--lb-border)}
+.sidebar-utility{gap:12px;min-height:56px;padding:8px 10px;border:0;border-radius:14px}
+.sidebar-utility:hover{background:var(--lb-bg)}
+.utility-icon,.utility-icon.glossary{width:32px;height:32px;border-radius:10px;background:var(--lb-accent-soft);color:var(--lb-accent);font-size:15px}
+.sidebar-utility strong{color:var(--lb-text);font-size:14px;font-weight:600}
+.sidebar-utility small{color:var(--lb-text-3);font-size:12px}
+.sidebar-utility>.el-icon:last-child{color:var(--lb-text-4)}
+.sidebar-help{gap:8px;margin:16px 4px 0;padding:12px 14px;border:0;border-radius:14px;background:var(--lb-warn-soft);color:#92400e;font-size:12px;line-height:1.6}
+.sidebar-help .el-icon{color:var(--lb-warn)}
+
+/* 欢迎卡 */
+.welcome-panel{min-height:0;padding:32px 32px 72px;background:#fff}
+.welcome-kicker{color:var(--lb-accent);font-size:12px;font-weight:700;letter-spacing:1.2px}
+.welcome-copy h2{margin:12px 0 12px;color:var(--lb-text);font-size:32px;font-weight:700;letter-spacing:-.5px;line-height:1.25}
+.welcome-copy p{max-width:640px;color:var(--lb-text-2);font-size:15px;line-height:1.75}
+.welcome-points{gap:8px;margin-top:20px}
+.welcome-points span{gap:6px;padding:6px 14px;border-radius:999px;background:var(--lb-bg-2);color:var(--lb-text);font-size:13px;font-weight:500}
+.welcome-points .el-icon{color:var(--lb-accent)}
+.orbit{border-color:rgba(0,184,184,.25)}
+.lesson-paper{border-color:var(--lb-border);box-shadow:0 16px 32px rgba(7,10,19,.1)}
+.lesson-paper i{background:var(--lb-bg-2)}
+.lesson-paper b{background:var(--lb-accent-soft)}
+.paper-check{background:var(--lb-text);color:var(--lb-accent-bright)}
+.art-star{color:var(--lb-accent)}
+.art-dot{background:var(--lb-accent-bright)}
+.welcome-foot{left:32px;right:32px;bottom:20px;gap:8px;padding-top:14px;border-color:var(--lb-border);color:var(--lb-text-3);font-size:13px}
+.welcome-foot .el-icon{color:var(--lb-text-4)}
+
+/* 导览视频：深色卡 */
+.intro-video{grid-template-columns:minmax(260px,.95fr) minmax(0,1.05fr);background:#0b1220;box-shadow:0 12px 32px rgba(7,10,19,.16)}
+.video-thumb{min-height:220px;background:radial-gradient(420px 220px at 80% 0%,rgba(0,240,196,.28),transparent 60%),linear-gradient(135deg,#05070d,#12303a)}
+.video-grid{opacity:.5}
+.video-orbit{border-color:rgba(255,255,255,.12)}
+.video-brand{color:#fff;font-size:14px}
+.video-brand span{color:var(--lb-accent-bright)}
+.play-button{width:64px;height:64px;border:0;background:#fff;color:var(--lb-text);font-size:28px;box-shadow:0 0 0 10px rgba(255,255,255,.12)}
+.play-button:hover{background:var(--lb-accent-bright);transform:translate(-50%,-50%) scale(1.04)}
+.video-length,.video-ribbon{padding:4px 12px;border:1px solid rgba(255,255,255,.18);border-radius:999px;background:rgba(255,255,255,.08);color:rgba(255,255,255,.82);font-size:12px}
+.video-copy{justify-content:center;padding:32px}
+.video-copy .section-kicker{color:rgba(255,255,255,.45)}
+.video-copy h3{margin:10px 0 10px;color:#fff;font-size:26px;font-weight:700}
+.video-copy p{color:rgba(255,255,255,.65);font-size:15px;line-height:1.7}
+.video-meta{gap:16px;margin:14px 0 20px;color:rgba(255,255,255,.55);font-size:13px}
+.video-meta .el-icon{color:var(--lb-accent-bright)}
+.video-action{height:44px;padding:0 24px;border:0;border-radius:999px;background:#fff;color:var(--lb-text);font-size:14px;font-weight:600}
+.video-action:hover,.video-action:focus{background:var(--lb-accent-bright);color:var(--lb-text)}
+
+/* 区块标题 */
+.philosophy-section,.lessons-section{margin-top:12px}
+.section-heading{align-items:flex-end;margin-bottom:20px}
+.section-heading h2{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin:8px 0 8px;color:var(--lb-text);font-size:28px;font-weight:700;letter-spacing:-.3px}
+.section-heading h2 small{color:var(--lb-text-3);font-size:14px;font-weight:500}
+.section-heading p{color:var(--lb-text-3);font-size:15px}
+.step-word{width:36px;height:36px;display:inline-grid;place-items:center;border-radius:12px;background:var(--lb-text);color:var(--lb-accent-bright);font-size:17px}
+.section-count{padding:8px 14px;border:0;border-radius:999px;background:#fff;color:var(--lb-text-2);font-size:13px;font-weight:600}
+
+/* 札记卡 */
+.notes-grid{gap:16px}
+.note-card{gap:8px;padding:24px;transition:transform .2s,box-shadow .2s}
+.note-card:hover,.lesson-card:hover{transform:translateY(-2px);box-shadow:0 1px 2px rgba(7,10,19,.04),0 20px 40px rgba(7,10,19,.1)}
+.note-icon,.note-icon.blue,.note-icon.violet,.note-icon.orange,.note-icon.green{width:40px;height:40px;margin-bottom:8px;border-radius:12px;background:var(--lb-bg-2);color:var(--lb-text);font-size:18px}
+.note-icon.orange{background:var(--lb-warn-soft);color:var(--lb-warn)}
+.note-icon.green,.note-icon.blue{background:var(--lb-accent-soft);color:var(--lb-accent)}
+.note-kind{color:var(--lb-text-4);font-size:12px;font-weight:600;letter-spacing:.5px}
+.note-card>strong{color:var(--lb-text);font-size:17px;font-weight:700;line-height:1.4}
+.note-card>small{color:var(--lb-text-3);font-size:13px;line-height:1.65}
+.note-link{gap:4px;margin-top:8px;color:var(--lb-text);font-size:13px;font-weight:600}
+
+/* 课程卡 */
+.lesson-list{gap:16px}
+.lesson-card{grid-template-columns:200px minmax(0,1fr);min-height:0;border:2px solid transparent;transition:transform .2s,box-shadow .2s,border-color .2s}
+.lesson-selected{border-color:var(--lb-text)}
+.lesson-cover{min-height:200px}
+.cover-blue,.cover-cyan,.cover-violet,.cover-orange,.cover-green,.cover-navy{background:linear-gradient(150deg,#05070d,#0f2a33)}
+.cover-cyan{background:linear-gradient(150deg,#05070d,#0b3b3b)}
+.cover-violet{background:linear-gradient(150deg,#05070d,#1f1b3a)}
+.cover-orange{background:linear-gradient(150deg,#05070d,#3a2a10)}
+.cover-green{background:linear-gradient(150deg,#05070d,#0d3a2c)}
+.cover-navy{background:linear-gradient(150deg,#05070d,#0f1d33)}
+.cover-number{top:18px;left:20px;color:#fff;font-size:28px;font-weight:700;letter-spacing:-.5px}
+.cover-graphic{width:64px;height:64px;border:1px solid rgba(255,255,255,.18);border-radius:18px;background:rgba(255,255,255,.08);backdrop-filter:blur(8px);color:var(--lb-accent-bright);font-size:28px;box-shadow:none}
+.cover-graphic i{background:var(--lb-accent-bright)}
+.cover-caption{left:20px;bottom:16px;color:rgba(255,255,255,.4);font-size:11px;letter-spacing:1.4px}
+.lesson-body{padding:24px 28px}
+.lesson-topline{gap:10px;flex-wrap:wrap}
+.access-badge{gap:4px;padding:4px 12px;border:0;border-radius:999px;font-size:12px;font-weight:600}
+.access-badge.public{background:var(--lb-accent-soft);color:#008a8a}
+.access-badge.member{background:var(--lb-warn-soft);color:#b45309}
+.lesson-duration{gap:5px;color:var(--lb-text-3);font-size:13px}
+.lesson-tagline{padding:4px 12px;border-radius:999px;background:var(--lb-text);color:#fff;font-size:12px;font-weight:600}
+.lesson-body h3{margin:14px 0 10px;color:var(--lb-text);font-size:22px;font-weight:700;letter-spacing:-.3px}
+.lesson-body p{color:var(--lb-text-2);font-size:14px;line-height:1.75}
+.lesson-topics{gap:8px;margin-top:14px}
+.lesson-topics span{padding:5px 12px;border:0;border-radius:999px;background:var(--lb-bg-2);color:var(--lb-text-2);font-size:12px}
+.lesson-link{height:40px;margin-top:18px;padding:0 20px;border:0;border-radius:999px;background:var(--lb-text);color:#fff;font-size:14px;font-weight:600;transition:background .15s}
+.lesson-link:hover{background:#1f2937}
+
+/* 资料卡 */
+.resources-grid{gap:16px}
+.resource-card{gap:16px;padding:28px;transition:transform .2s,box-shadow .2s}
+.resource-card:hover{transform:translateY(-2px);box-shadow:0 1px 2px rgba(7,10,19,.04),0 20px 40px rgba(7,10,19,.1)}
+.resource-icon,.glossary-card .resource-icon{width:48px;height:48px;border-radius:14px;background:var(--lb-text);color:var(--lb-accent-bright);font-size:22px}
+.resource-card h3{margin:8px 0 8px;color:var(--lb-text);font-size:22px;font-weight:700}
+.resource-card p{color:var(--lb-text-2);font-size:14px;line-height:1.7}
+.resource-link{gap:4px;margin-top:12px;color:var(--lb-text);font-size:14px;font-weight:600}
+.resource-mark{color:var(--lb-bg-2);font-size:44px;font-weight:800}
+
+/* 免责 */
+.academy-disclaimer{gap:12px;padding:18px 22px;border:0;border-radius:20px;background:#fff;color:var(--lb-text-2);font-size:14px;line-height:1.6;box-shadow:0 1px 2px rgba(7,10,19,.04)}
+.academy-disclaimer .el-icon{flex:none;width:36px;height:36px;border-radius:12px;background:var(--lb-warn-soft);color:var(--lb-warn);font-size:17px}
+
+/* 状态面板 */
+.status-panel{min-height:360px;gap:10px}
+.status-icon{width:56px;height:56px;border-radius:16px;background:var(--lb-bg-2);color:var(--lb-text-2);font-size:24px}
+.status-panel strong{color:var(--lb-text);font-size:18px}
+.status-panel p{color:var(--lb-text-3);font-size:14px}
+.status-panel button,.detail-state button{height:40px;padding:0 22px;border:0;border-radius:999px;background:var(--lb-text);color:#fff;font-size:14px;font-weight:600}
+.deploy-tip{padding:10px 14px;border-radius:12px;background:var(--lb-bg);color:var(--lb-text-2);font-size:13px}
+.deploy-tip i{background:var(--lb-accent)}
+
+/* 弹窗内容 */
+.dialog-copy{color:var(--lb-text-2);font-size:14px;line-height:1.7}
+.dialog-chapters span{border-radius:12px;background:var(--lb-bg)}
+.access-badge.public,.qa-head .access-badge{background:var(--lb-accent-soft);color:#008a8a}
+.lesson-toc button{padding:6px 14px;border:0;border-radius:999px;background:var(--lb-bg-2);color:var(--lb-text-2);font-size:13px}
+.lesson-toc button:hover{background:var(--lb-text);color:#fff}
+.lesson-article{color:var(--lb-text-2);font-size:15px;line-height:1.8}
+.lesson-article :deep(h1),.lesson-article :deep(h2),.lesson-article :deep(h3){color:var(--lb-text)}
+.lesson-article :deep(.acd-kick),.lesson-article :deep(.kick),.lesson-article :deep(.num){color:var(--lb-accent)}
+.lesson-article :deep(.acd-first),.lesson-article :deep(.first){border:0;border-radius:14px;background:var(--lb-bg)}
+.lesson-article :deep(.acd-lede),.lesson-article :deep(.lede){color:var(--lb-text-2)}
+.lesson-article :deep(.acd-sec-note){border-left-color:var(--lb-accent);background:var(--lb-accent-soft);color:var(--lb-text-2)}
+.detail-out{color:var(--lb-text);font-weight:600}
+.qa-issues button{border-radius:999px}
+.qa-issues button.active{border-color:var(--lb-text);background:var(--lb-text);color:#fff}
+.qa-issues button.active small{color:rgba(255,255,255,.6)}
+.qa-chapter h4 b{background:var(--lb-text);color:var(--lb-accent-bright)}
+.qa-item{border-color:var(--lb-border);border-radius:14px}
+.qa-item h5 span{background:var(--lb-accent-soft);color:#008a8a}
+.qa-key{background:var(--lb-warn-soft)}
+.glossary-search :deep(.el-input__wrapper){border-radius:999px}
+.glossary-item{border-color:var(--lb-border)}
+.glossary-item dt{color:var(--lb-text)}
+.gloss-where span{background:var(--lb-accent-soft);color:#008a8a}
+
+/* ---------- 响应式 ---------- */
+@media(max-width:1279px){.academy-layout{grid-template-columns:248px minmax(0,1fr);gap:20px}.notes-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:1100px){.academy-page{--pad-top:24px;--pad-bottom:36px}.page-heading h1{font-size:40px}.lesson-card{grid-template-columns:160px minmax(0,1fr)}}
+@media(max-width:1000px){.academy-layout{grid-template-columns:1fr}.course-sidebar{position:static;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;padding:16px}.sidebar-heading,.sidebar-caption,.sidebar-divider,.sidebar-help{grid-column:1/-1}}
+@media(max-width:760px){
+  .academy-page{--pad-top:20px;--pad-bottom:30px;padding-bottom:40px}
+  .lb-wrap{padding:0 16px}
+  .lb-hero{padding:40px 0 100px}
+  .page-heading{align-items:flex-start}
+  .page-heading h1{font-size:34px}
+  .page-heading p{font-size:14px}
+  .lb-body{margin-top:-72px}
+  .course-sidebar{grid-template-columns:1fr}
+  .welcome-panel{grid-template-columns:1fr;padding:24px 20px 88px}
+  .welcome-art{display:none}
+  .welcome-copy h2{font-size:24px}
+  .welcome-foot{left:20px;right:20px}
+  .intro-video{grid-template-columns:1fr}
+  .video-copy{padding:24px 20px}
+  .video-copy h3{font-size:22px}
+  .section-heading h2{font-size:22px}
+  .notes-grid{grid-template-columns:1fr}
+  .note-card{padding:20px}
+  .lesson-card{grid-template-columns:1fr}
+  .lesson-cover{min-height:120px}
+  .lesson-body{padding:20px}
+  .lesson-body h3{font-size:19px}
+  .resources-grid{grid-template-columns:1fr}
+  .resource-card{padding:22px}
+}
+@media(max-width:390px){.page-heading h1{font-size:30px}.welcome-copy h2{font-size:22px}}
 </style>

@@ -1,9 +1,13 @@
 <template>
   <div class="scorecard-page">
+    <section class="lb-hero"><div class="lb-wrap">
     <section class="page-heading">
       <div><div class="eyebrow"><span class="eyebrow-dot"/>REVIEW · PERFORMANCE</div><h1>战绩<DataViewTag resource="record" /></h1><p>每日结算净额 · 管理后口径</p></div>
       <div class="heading-meta"><span>{{ syncBadge }}</span><el-button plain class="share-button" :disabled="!ready" @click="shareSummary"><el-icon><Share /></el-icon>{{ shareLabel }}</el-button></div>
     </section>
+    </div></section>
+
+    <div class="lb-wrap lb-body">
 
     <DelayedEmpty v-if="dataView.empty" resource="record" />
     <section v-else-if="!ready" class="panel status-panel">
@@ -84,7 +88,11 @@
       <div class="records-footer"><span>{{ pageRecords.length }} / {{ visibleRecords.length }} 条记录<el-button v-if="pageRecords.length<visibleRecords.length" link type="primary" class="more-button" @click="pageSize+=PAGE">显示更多</el-button></span><span>数据来自 OSM 同步 · 批次 {{ summary?.syncId ?? '—' }} · 结算日倒序</span></div>
     </section>
     </template>
+    </div>
+
+    <section class="lb-gray"><div class="lb-wrap">
     <section class="disclaimer"><el-icon><Warning /></el-icon><span>战绩为 OSM 正式信号按发报中间价记账、按管理规则了结的研究口径结果，不是任何会员的真实成交。历史表现不代表未来结果。</span></section>
+    </div></section>
   </div>
 </template>
 
@@ -267,4 +275,284 @@ onMounted(loadAll)
 @media(max-width:700px){.page-heading{align-items:flex-start;flex-direction:column;gap:9px}.heading-meta{width:100%;justify-content:space-between}.chart-panel{padding:12px}.control-row{flex-wrap:wrap}.control-row+.control-row{margin-top:7px}.control-hint{display:none}.chart-type-label{margin-left:auto}.range-label{margin-left:0}.floating-switch{margin:3px 0 0 auto}.performance-chart{height:160px;grid-template-columns:44px minmax(0,1fr)}.chart-axis{font-size:6px}.chart-legend{gap:8px;font-size:7px}.summary-strip{grid-template-columns:repeat(2,1fr);padding:10px}.summary-total,.summary-cell{min-height:44px;padding:0 8px}.summary-strip>div:nth-child(odd){border-right:0}.summary-total strong{font-size:15px}.rescued-list{grid-template-columns:1fr}.management-summary{grid-template-columns:repeat(2,1fr);row-gap:12px}.management-summary>div:nth-child(2){border-right:0}.quality-grid{grid-template-columns:1fr}.records-toolbar{align-items:flex-start;flex-direction:column;padding:0 11px 9px}.record-filters{max-width:100%;overflow:auto}.search-input{width:100%}.records-heading{padding:12px}.records-footer{flex-direction:column}.disclaimer{align-items:flex-start}}
 @media(max-width:390px){.segmented button{padding:5px 6px;font-size:7px}.segmented.compact button{padding:5px}.floating-switch :deep(.el-switch__label){font-size:6px}.summary-cell span{font-size:7px}.summary-cell strong{font-size:11px}.chart-footnote{font-size:6px}}
 .status-panel{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;min-height:260px;padding:30px 20px;text-align:center}.status-icon{display:flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:50%;background:#eef5fc;color:#5b91c7;font-size:18px}.status-panel strong{color:#3d5a7a;font-size:13px}.status-panel p{margin:0;color:#8e9daf;font-size:9px}.status-panel button{margin-top:6px;padding:6px 12px;border:1px solid #dfe8f2;border-radius:7px;background:#fff;color:#3c78b5;font-size:9px;cursor:pointer}.deploy-tip{display:flex;align-items:center;gap:6px;max-width:420px;margin-top:4px;padding:7px 10px;border-radius:7px;background:#f4f8fc;color:#7d93aa;font-size:8px;line-height:1.5;text-align:left}.deploy-tip i{flex:none;width:5px;height:5px;border-radius:50%;background:#7ea8d3}.spinning{animation:sc-spin 1s linear infinite}@keyframes sc-spin{to{transform:rotate(360deg)}}.is-loading{opacity:.6;transition:opacity .15s}.chart-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#a0adba;font-size:9px}.rescued-empty{margin-top:10px;padding:14px;border:1px dashed #e6edf5;border-radius:7px;color:#a0adba;font-size:8px;text-align:center}.lots-tag{margin-left:5px;padding:1px 4px;border-radius:4px;background:#eaf6f0;color:#3f9670;font-size:7px;font-style:normal;font-weight:600}.excluded-pill{margin-left:4px;background:#f6f1ea;color:#a3814f}.pending-pill{background:#fdf4e6;color:#c58a3c}.more-button{margin-left:8px;font-size:7px}
+</style>
+
+<style>
+html:has(.scorecard-page){overflow-x:clip}
+</style>
+
+<!-- 长桥风格覆盖层（docs/longbridge-ui.md） -->
+<style scoped>
+.scorecard-page{
+  --lb-text:#070a13;--lb-text-2:#4b5563;--lb-text-3:#6b7280;--lb-text-4:#a8aaad;
+  --lb-accent:#00b8b8;--lb-accent-bright:#00f0c4;--lb-accent-soft:rgba(0,184,184,.1);
+  --lb-bg:#f9fafb;--lb-bg-2:#f1f3f4;--lb-border:#e5e7eb;
+  --lb-up:#e8467c;--lb-up-soft:rgba(232,70,124,.1);--lb-down:#00b8b8;--lb-warn:#f59e0b;--lb-warn-soft:rgba(245,158,11,.12);
+  --pad-top:30px;--pad-bottom:42px;
+  --ink:var(--lb-text);--muted:var(--lb-text-3);--line:var(--lb-border);
+  margin:calc(var(--pad-top)*-1) calc(50% - 50vw) calc(var(--pad-bottom)*-1);
+  background:var(--lb-bg-2);color:var(--lb-text);
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue","Microsoft YaHei",sans-serif;
+}
+.lb-wrap{max-width:1248px;margin:0 auto;padding:0 24px}
+
+/* ---------- Hero ---------- */
+.lb-hero{position:relative;overflow:hidden;padding:56px 0 120px;color:#fff;
+  background:radial-gradient(900px 420px at 85% -10%,rgba(0,240,196,.22),transparent 60%),radial-gradient(700px 380px at 0% 120%,rgba(0,184,184,.18),transparent 60%),linear-gradient(180deg,#05070d,#0b1220)}
+.page-heading{align-items:flex-end;gap:24px;margin:0}
+.eyebrow{display:inline-flex;gap:8px;padding:6px 14px;border:1px solid rgba(255,255,255,.14);border-radius:999px;background:rgba(255,255,255,.06);color:rgba(255,255,255,.78);font-size:12px;font-weight:600;letter-spacing:1.6px}
+.eyebrow-dot{background:var(--lb-accent-bright);box-shadow:0 0 0 4px rgba(0,240,196,.18)}
+.page-heading h1{display:flex;align-items:center;gap:12px;margin:18px 0 10px;color:#fff;font-size:48px;font-weight:700;line-height:1.1;letter-spacing:-1px}
+.page-heading p{color:rgba(255,255,255,.62);font-size:16px}
+.heading-meta{gap:12px;color:rgba(255,255,255,.7);font-size:13px}
+.heading-meta>span{display:inline-flex;align-items:center;height:36px;padding:0 16px;border:1px solid rgba(255,255,255,.16);border-radius:999px;background:rgba(255,255,255,.08);backdrop-filter:blur(12px);white-space:nowrap}
+.share-button{height:36px;padding:0 18px;border:0;border-radius:999px;background:#fff;color:var(--lb-text);font-size:13px;font-weight:600}
+.share-button:hover,.share-button:focus{background:var(--lb-accent-bright);color:var(--lb-text)}
+.share-button.is-disabled{background:rgba(255,255,255,.2);color:rgba(255,255,255,.5)}
+
+/* ---------- 正文（上浮叠在 Hero 上） ---------- */
+.lb-body{position:relative;margin-top:-84px;padding-bottom:24px}
+.panel{border:0;border-radius:20px;background:#fff;box-shadow:0 1px 2px rgba(7,10,19,.04),0 12px 32px rgba(7,10,19,.06)}
+.positive{color:var(--lb-up)!important}
+.negative{color:var(--lb-down)!important}
+.neutral{color:var(--lb-text-3)!important}
+.section-kicker{color:var(--lb-text-4);font-size:12px;font-weight:600;letter-spacing:1.6px}
+.chart-panel-top h2,.section-heading h2,.records-heading h2{margin:6px 0 6px;color:var(--lb-text);font-size:24px;font-weight:700;letter-spacing:-.3px}
+.section-heading h2 small{color:var(--lb-text-3);font-size:15px;font-weight:500}
+.chart-panel-top p,.section-heading p,.records-heading p{color:var(--lb-text-3);font-size:14px;line-height:1.5}
+.heading-icon{color:var(--lb-text-3);font-size:22px}
+.section-heading>.el-tag{height:28px;padding:0 12px;border:0;border-radius:999px;background:var(--lb-warn-soft);color:#b45309;font-size:12px;font-weight:600}
+
+/* 图表面板 */
+.chart-panel{padding:28px 28px 20px}
+.demo-tag{gap:6px;padding:6px 12px;border:0;border-radius:999px;background:var(--lb-bg-2);color:var(--lb-text-2);font-size:12px;letter-spacing:.3px}
+.demo-tag i{width:6px;height:6px;background:var(--lb-accent)}
+.control-rows{margin-top:20px;padding:14px 16px;border:0;border-radius:16px;background:var(--lb-bg)}
+.control-row{gap:10px;min-height:40px;flex-wrap:wrap}
+.control-row+.control-row{margin-top:8px}
+.control-label{color:var(--lb-text-3);font-size:13px}
+.segmented{gap:2px;padding:3px;border:0;border-radius:999px;background:var(--lb-bg-2)}
+.segmented button,.segmented.compact button{height:32px;padding:0 14px;border-radius:999px;color:var(--lb-text-2);font-size:13px;font-weight:500;transition:background .15s,color .15s}
+.segmented button:hover{background:rgba(7,10,19,.05);color:var(--lb-text)}
+.segmented button.active{background:var(--lb-text);color:#fff;font-weight:600}
+.control-hint{color:var(--lb-text-4);font-size:12px}
+.chart-type-label,.range-label{margin-left:14px}
+.floating-switch{--el-switch-on-color:var(--lb-text)}
+.floating-switch-label,.floating-switch :deep(.el-switch__label){color:var(--lb-text-2);font-size:13px}
+.chart-legend{gap:18px;margin:20px 4px 8px;color:var(--lb-text-2);font-size:13px}
+.chart-legend i{width:10px;height:10px;border-radius:3px}
+.legend-settled{background:var(--lb-text)}
+.legend-floating{background:var(--lb-warn)}
+.chart-legend small{color:var(--lb-text-4);font-size:12px}
+.performance-chart{height:280px;grid-template-columns:64px minmax(0,1fr);gap:10px}
+.chart-axis{color:var(--lb-text-4);font-size:12px;font-variant-numeric:tabular-nums}
+.grid-line{background:var(--lb-bg-2)}
+.grid-line.zero,.zero-axis{background:#d1d5db}
+.bar-group>span,.line-labels{color:var(--lb-text-4);font-size:12px}
+.bar-group>span{bottom:-18px}
+.settled-bar{width:min(16px,42%);border-radius:4px 4px 0 0;background:var(--lb-up)}
+.settled-bar.loss{border-radius:0 0 4px 4px;background:var(--lb-down)}
+.floating-bar,.floating-bar.loss{background:rgba(245,158,11,.45)}
+.line-chart polyline:first-of-type{stroke:var(--lb-text)}
+.line-chart polyline[stroke-dasharray]{stroke:var(--lb-warn)}
+.line-chart stop{stop-color:var(--lb-accent)}
+.chart-empty{color:var(--lb-text-4);font-size:14px}
+.chart-footnote{margin-top:8px;padding-top:14px;border-color:var(--lb-border);color:var(--lb-text-4);font-size:12px;line-height:1.6}
+
+/* 汇总条：黑底 */
+.summary-strip{margin:20px 0;padding:24px 8px;background:var(--lb-text);box-shadow:0 12px 32px rgba(7,10,19,.12)}
+.summary-total,.summary-cell{gap:10px;padding:0 20px;border-color:rgba(255,255,255,.1)}
+.summary-total span,.summary-cell span{color:rgba(255,255,255,.55);font-size:13px}
+.summary-total span small{color:rgba(255,255,255,.35)}
+.summary-total strong{color:#fff;font-size:32px;font-weight:700;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+.summary-cell strong{color:#fff;font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+.summary-cell strong small{color:rgba(255,255,255,.4);font-size:14px}
+.summary-strip .positive{color:#ff7aa5!important}
+.summary-strip .negative{color:var(--lb-accent-bright)!important}
+
+/* 逆风处置对照 */
+.management-panel{margin-bottom:20px;padding:28px}
+.management-summary{margin:20px 0;padding:20px 0;border:0;border-radius:16px;background:var(--lb-bg)}
+.management-summary>div{gap:8px;padding:0 20px;border-color:var(--lb-border)}
+.management-summary span{color:var(--lb-text-3);font-size:13px}
+.management-summary strong{color:var(--lb-text);font-size:26px;font-weight:700;font-variant-numeric:tabular-nums}
+.rescued-heading{color:var(--lb-text);font-size:15px;font-weight:600}
+.rescued-heading small{color:var(--lb-text-4);font-size:12px;font-weight:400}
+.rescued-list{gap:12px;margin-top:12px}
+.rescued-item{gap:8px;padding:14px 16px;border:1px solid var(--lb-border);border-radius:14px;font-size:13px;transition:border-color .2s,box-shadow .2s}
+.rescued-item:hover{border-color:#d1d5db;box-shadow:0 8px 20px rgba(7,10,19,.06)}
+.rescued-symbol{color:var(--lb-text);font-size:15px}
+.rescued-detail{color:var(--lb-text-3);font-size:12px}
+.rescued-item .el-icon{color:var(--lb-text-4)}
+.rescued-item strong{padding:3px 10px;border:0;border-radius:999px;background:var(--lb-bg-2)}
+.rescued-empty{margin-top:12px;padding:24px;border:1px dashed var(--lb-border);border-radius:14px;color:var(--lb-text-4);font-size:14px}
+.management-note{gap:6px;margin-top:16px;color:var(--lb-text-3);font-size:13px}
+.management-note .el-icon{color:var(--lb-text-4)}
+
+/* 本月信号 / 按标的 */
+.monthly-grid,.quality-grid{gap:20px;margin-bottom:20px}
+.monthly-panel,.symbols-panel,.winloss-panel,.range-panel{padding:28px}
+.cohort-total{gap:12px;margin:20px 0 12px;padding:18px 20px;border-radius:16px;background:var(--lb-text)}
+.cohort-total span{color:rgba(255,255,255,.6);font-size:13px}
+.cohort-total strong{color:#fff;font-size:28px;font-weight:700}
+.cohort-total strong.positive{color:#ff7aa5!important}
+.cohort-total strong.negative{color:var(--lb-accent-bright)!important}
+.cohort-total small{color:rgba(255,255,255,.45);font-size:12px}
+.cohort-metrics{gap:12px}
+.cohort-metrics>div{gap:6px;padding:16px;border:0;border-radius:14px;background:var(--lb-bg)}
+.cohort-metrics span{color:var(--lb-text-3);font-size:13px}
+.cohort-metrics strong{color:var(--lb-text);font-size:22px;font-weight:700}
+.cohort-metrics small{color:var(--lb-text-4);font-size:12px}
+.cohort-bars{gap:10px;margin-top:18px}
+.cohort-bars>div{grid-template-columns:48px 1fr 32px;gap:10px;color:var(--lb-text-3);font-size:13px}
+.cohort-bars>div>div{height:8px;border-radius:999px;background:var(--lb-bg-2)}
+.cohort-bars i.green{background:var(--lb-up)}
+.cohort-bars i.red{background:var(--lb-down)}
+.cohort-bars i.gray{background:var(--lb-text-4)}
+.cohort-bars strong{color:var(--lb-text)}
+.symbol-list{gap:14px;margin-top:20px}
+.symbol-row{gap:12px}
+.symbol-badge{width:60px;color:var(--lb-text);font-size:14px}
+.symbol-values small{color:var(--lb-text-3);font-size:12px}
+.symbol-values strong{flex:none;font-size:14px;font-weight:700;white-space:nowrap}
+.progress-track{height:8px;margin-top:8px;border-radius:999px;background:var(--lb-bg-2)}
+.progress-track i{border-radius:999px;background:var(--lb-up)}
+.progress-track i.negative{background:var(--lb-down)}
+.symbol-groups{width:44px;color:var(--lb-text-4);font-size:12px}
+
+/* 胜负分布 / 幅度范围 */
+.winloss-content{gap:40px;min-height:200px}
+.winloss-donut{width:150px;height:150px;filter:hue-rotate(180deg) saturate(1.3)}
+.winloss-donut:before{inset:18px}
+.winloss-donut strong,.winloss-donut small{color:var(--lb-text)}
+.winloss-donut strong{font-size:30px;font-weight:700}
+.winloss-donut small{color:var(--lb-text-3);font-size:12px}
+.winloss-legend{gap:14px}
+.winloss-legend>div{gap:40px;color:var(--lb-text-2);font-size:14px}
+.winloss-legend i{width:10px;height:10px}
+.win-dot{background:var(--lb-up)}
+.loss-dot{background:var(--lb-down)}
+.flat-dot{background:var(--lb-text-4)}
+.winloss-legend strong{color:var(--lb-text);font-size:15px}
+.winloss-legend small{color:var(--lb-text-4);font-size:12px}
+.range-values{gap:12px;margin:28px 0 20px}
+.range-values>div{gap:8px;padding:16px;border-radius:14px;background:var(--lb-bg)}
+.range-values span{color:var(--lb-text-3);font-size:13px}
+.range-values strong{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+.range-visual{height:16px}
+.range-track{top:6px;height:4px;border-radius:999px;background:linear-gradient(90deg,var(--lb-down),var(--lb-border) 50%,var(--lb-up))}
+.range-marker{top:1px;width:14px;height:14px;border:3px solid #fff}
+.loss-marker,.avg-loss-marker{color:var(--lb-down);background:var(--lb-down)}
+.avg-win-marker,.win-marker{color:var(--lb-up);background:var(--lb-up)}
+.range-caption{margin-top:16px;color:var(--lb-text-4);font-size:12px}
+
+/* 已结算记录 */
+.records-heading{padding:28px 28px 20px}
+.export-button{height:40px;padding:0 20px;border:0;border-radius:999px;background:var(--lb-text);color:#fff;font-size:14px;font-weight:600}
+.export-button:hover,.export-button:focus{background:#1f2937;color:#fff}
+.export-button.is-disabled{background:var(--lb-bg-2);color:var(--lb-text-4)}
+.records-toolbar{flex-wrap:wrap;gap:12px;padding:0 28px 20px}
+.record-filters{gap:2px;padding:3px;border-radius:999px;background:var(--lb-bg-2)}
+.record-filters button{height:32px;padding:0 14px;border-radius:999px;color:var(--lb-text-2);font-size:13px;font-weight:500;white-space:nowrap}
+.record-filters button:hover{color:var(--lb-text)}
+.record-filters button.active{background:var(--lb-text);color:#fff;font-weight:600}
+.record-filters small{color:var(--lb-text-4)}
+.record-filters button.active small{color:rgba(255,255,255,.6)}
+.search-input{width:260px}
+.search-input :deep(.el-input__wrapper){height:40px;padding:0 16px;border-radius:999px;box-shadow:0 0 0 1px var(--lb-border) inset}
+.search-input :deep(.el-input__wrapper.is-focus){box-shadow:0 0 0 1px var(--lb-text) inset,0 0 0 3px rgba(7,10,19,.06)}
+.search-input :deep(.el-input__inner){color:var(--lb-text);font-size:14px}
+.table-wrap{border-color:var(--lb-border)}
+.record-table{min-width:1000px}
+.record-table th{height:44px;padding:0 14px;background:var(--lb-bg);color:var(--lb-text-3);font-size:12px;font-weight:600}
+.record-table td{height:60px;padding:6px 14px;border-color:var(--lb-bg-2);color:var(--lb-text-2);font-size:14px;font-variant-numeric:tabular-nums}
+.record-table th:first-child,.record-table td:first-child{padding-left:28px}
+.record-table th:last-child,.record-table td:last-child{padding-right:28px}
+.record-table tbody tr{transition:background .15s}
+.record-table tbody tr:hover{background:var(--lb-bg)}
+.record-table td:nth-last-child(-n+2){font-weight:700}
+.record-symbol{gap:4px}
+.record-symbol b{color:var(--lb-text);font-size:15px}
+.record-symbol span{color:var(--lb-text-3);font-size:12px}
+.lots-tag{margin-left:8px;padding:2px 8px;border-radius:999px;background:var(--lb-accent-soft);color:#008a8a;font-size:11px}
+.basis-pill{padding:4px 10px;border-radius:999px;background:var(--lb-bg-2);color:var(--lb-text-2);font-size:12px;font-weight:500}
+.excluded-pill{background:var(--lb-warn-soft);color:#b45309}
+.pending-pill{background:var(--lb-warn-soft);color:#b45309}
+.table-empty{min-height:240px;gap:10px;color:var(--lb-text-3);font-size:14px}
+.table-empty .el-icon{color:var(--lb-text-4);font-size:28px}
+.table-empty strong{color:var(--lb-text);font-size:18px}
+.table-empty .el-button{font-size:14px;color:var(--lb-text)}
+.records-footer{align-items:center;padding:18px 28px;border-color:var(--lb-border);color:var(--lb-text-3);font-size:13px}
+.more-button{height:32px;margin-left:12px;padding:0 16px!important;border-radius:999px;background:var(--lb-text)!important;color:#fff!important;font-size:13px}
+
+/* 状态面板 */
+.status-panel{min-height:360px;gap:10px}
+.status-icon{width:56px;height:56px;border-radius:16px;background:var(--lb-bg-2);color:var(--lb-text-2);font-size:24px}
+.status-panel strong{color:var(--lb-text);font-size:18px}
+.status-panel p{color:var(--lb-text-3);font-size:14px}
+.status-panel button{height:40px;padding:0 22px;border:0;border-radius:999px;background:var(--lb-text);color:#fff;font-size:14px;font-weight:600}
+.deploy-tip{padding:10px 14px;border-radius:12px;background:var(--lb-bg);color:var(--lb-text-2);font-size:13px}
+.deploy-tip i{background:var(--lb-accent)}
+
+/* 灰底免责区 */
+.lb-gray{padding:8px 0 64px}
+.disclaimer{gap:14px;margin:0;padding:20px 24px;border:0;border-radius:20px;background:#fff;color:var(--lb-text-2);font-size:14px;line-height:1.6;box-shadow:0 1px 2px rgba(7,10,19,.04)}
+.disclaimer .el-icon{width:40px;height:40px;border-radius:12px;background:var(--lb-warn-soft);color:var(--lb-warn);font-size:18px}
+
+/* ---------- 响应式 ---------- */
+@media(max-width:1279px){.summary-total strong{font-size:28px}.summary-cell strong{font-size:19px}.summary-total,.summary-cell{padding:0 14px}}
+@media(max-width:1100px){.scorecard-page{--pad-top:24px;--pad-bottom:36px}.page-heading h1{font-size:40px}.summary-strip{grid-template-columns:repeat(3,1fr);row-gap:20px}.summary-cell:nth-child(3){border-right:0}.rescued-list{grid-template-columns:1fr 1fr}}
+@media(max-width:950px){.monthly-grid{grid-template-columns:1fr}.quality-grid{grid-template-columns:1fr}}
+@media(max-width:760px){
+  .scorecard-page{--pad-top:20px;--pad-bottom:30px}
+  .lb-wrap{padding:0 16px}
+  .lb-hero{padding:40px 0 100px}
+  .page-heading{align-items:flex-start}
+  .page-heading h1{font-size:34px}
+  .bar-group:nth-child(even)>span,.line-labels span:nth-child(even){visibility:hidden}
+  .page-heading p{font-size:14px}
+  .heading-meta{flex-wrap:wrap}
+  .heading-meta>span{height:32px;padding:0 12px;font-size:12px}
+  .share-button{height:32px}
+  .lb-body{margin-top:-72px}
+  .chart-panel,.management-panel,.monthly-panel,.symbols-panel,.winloss-panel,.range-panel{padding:20px 18px}
+  .chart-panel-top,.section-heading,.records-heading{align-items:flex-start}
+  .chart-panel-top h2,.section-heading h2,.records-heading h2{font-size:20px}
+  .chart-panel-top{flex-direction:column}
+  .control-rows{padding:12px}
+  .segmented{max-width:100%;overflow-x:auto}
+  .segmented button,.segmented.compact button{height:30px;padding:0 11px;font-size:12px}
+  .chart-type-label,.range-label{margin-left:0}
+  .floating-switch{margin:0}
+  .performance-chart{height:220px;grid-template-columns:48px minmax(0,1fr)}
+  .chart-axis,.bar-group>span,.line-labels{font-size:10px}
+  .summary-strip{grid-template-columns:repeat(2,1fr);padding:20px 4px;row-gap:18px}
+  .summary-total{grid-column:1/-1;border-right:0}
+  .summary-strip>div:nth-child(3){border-right:1px solid rgba(255,255,255,.1)}
+  .summary-strip>div:nth-child(odd):not(:first-child){border-right:0}
+  .summary-total,.summary-cell{padding:0 14px}
+  .summary-total strong{font-size:28px}
+  .summary-cell strong{font-size:18px}
+  .summary-cell span{white-space:normal}
+  .management-summary{grid-template-columns:1fr 1fr;row-gap:16px;padding:16px 0}
+  .management-summary>div{padding:0 14px}
+  .management-summary strong{font-size:20px}
+  .rescued-list{grid-template-columns:1fr}
+  .cohort-total{grid-template-columns:1fr;gap:4px;padding:16px}
+  .cohort-total strong{font-size:24px}
+  .cohort-metrics strong,.range-values strong{font-size:18px}
+  .winloss-content{gap:24px}
+  .winloss-donut{width:120px;height:120px}
+  .winloss-donut strong{font-size:24px}
+  .winloss-legend>div{gap:20px}
+  .range-values{grid-template-columns:1fr 1fr}
+  .records-heading{padding:20px 18px 16px;gap:12px}
+  .records-toolbar{padding:0 18px 16px}
+  .record-filters{max-width:100%;overflow-x:auto}
+  .search-input{width:100%}
+  .record-table th:first-child,.record-table td:first-child{padding-left:18px}
+  .records-footer{align-items:flex-start;padding:16px 18px}
+  .lb-gray{padding-bottom:40px}
+}
+@media(max-width:390px){.page-heading h1{font-size:30px}.summary-cell strong{font-size:16px}.management-summary strong{font-size:18px}}
 </style>
