@@ -417,3 +417,4 @@ html:has(.acv3){overflow-x:clip}
 .acv3 .tip i{font-style:normal}
 .acv3 .empty.card{padding:36px;text-align:center;color:var(--lb-text-3)}
 .acv3 .orig span:only-child{white-space:normal}
+.acv3 .orig>span:first-child span{white-space:normal}
