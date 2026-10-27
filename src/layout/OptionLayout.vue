@@ -51,8 +51,8 @@ import { refreshUpdateProgress, updateState } from '@/utils/updateStore'
 const router = useRouter()
 const route = useRoute()
 const currentPath = computed(() => route.path)
-// 战绩 / 结算 / 学堂 / 更新页按设计稿取消底部通栏文案（品牌行 + 免责声明）
-const HIDE_FOOTER_PATHS = ['/scorecard', '/settlement', '/academy', '/updates']
+// 战绩 / 结算 / 学堂 / 更新 / 设置页按设计稿取消底部通栏文案（品牌行 + 免责声明）
+const HIDE_FOOTER_PATHS = ['/scorecard', '/settlement', '/academy', '/updates', '/settings']
 const hideChromeFooter = computed(() => HIDE_FOOTER_PATHS.includes(currentPath.value))
 const menuOpen = ref(false)
 // 主菜单（顺序与原导航一致）
